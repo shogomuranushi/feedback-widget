@@ -189,9 +189,9 @@ export default function App({ Component, pageProps }) {
 }
 ```
 
-### 5. API Configuration
+### 5. Widget Configuration
 
-#### Configuration Options
+#### Basic Configuration Options
 
 ```javascript
 // Custom configuration
@@ -205,15 +205,108 @@ FeedbackWidget.init({
 });
 ```
 
+#### Widget Position Adjustment
+
+```javascript
+// Bottom-right corner (default)
+FeedbackWidget.init({
+  position: 'bottom-right',
+  offset: { bottom: 24, right: 24 }
+});
+
+// Bottom-left corner
+FeedbackWidget.init({
+  position: 'bottom-left',
+  offset: { bottom: 24, left: 24 }
+});
+
+// Custom positioning with precise pixel control
+FeedbackWidget.init({
+  position: 'bottom-right',
+  offset: { 
+    bottom: 50,  // 50px from bottom
+    right: 30    // 30px from right edge
+  }
+});
+```
+
+#### Language Configuration
+
+The widget supports multiple languages. Configure the language by setting environment variables:
+
+```bash
+# Server-side language configuration (.env)
+# Supported: 'en' (English), 'ja' (Japanese)
+DEFAULT_LANGUAGE=en
+
+# Or set dynamically via API
+FEEDBACK_LANGUAGE=ja
+```
+
+**Language Switching Example:**
+
+```javascript
+// For multi-language sites, the widget automatically detects browser language
+// Manual language override (if needed in future versions):
+FeedbackWidget.init({
+  position: 'bottom-right',
+  language: 'en'  // 'en' | 'ja'
+});
+```
+
+#### AI Model Configuration
+
+Configure the AI model used for conversations:
+
+```bash
+# Environment Variables (.env)
+
+# Gemini Model Selection
+GEMINI_MODEL=gemini-2.5-pro-preview-06-05        # Latest model (default)
+# GEMINI_MODEL=gemini-1.5-pro                    # Alternative stable model
+# GEMINI_MODEL=gemini-1.5-flash                  # Faster, lightweight model
+
+# Model Parameters (optional - uses sensible defaults)
+GEMINI_TEMPERATURE=0.7          # Creativity level (0.0-1.0)
+GEMINI_MAX_TOKENS=1024          # Response length limit
+GEMINI_TOP_P=0.95              # Nucleus sampling parameter
+```
+
+**Available Model Options:**
+
+| Model | Description | Use Case |
+|-------|-------------|----------|
+| `gemini-2.5-pro-preview-06-05` | Latest advanced model | Best quality responses (default) |
+| `gemini-1.5-pro` | Stable production model | Balanced performance and reliability |
+| `gemini-1.5-flash` | Fast lightweight model | Quick responses, lower costs |
+
+**Model Switching Example:**
+
+```bash
+# Switch to faster model for high-traffic sites
+GEMINI_MODEL=gemini-1.5-flash
+GEMINI_TEMPERATURE=0.5
+GEMINI_MAX_TOKENS=512
+
+# Restart application to apply changes
+docker compose restart feedback-widget
+```
+
 #### API Methods
 
 ```javascript
-// Initialize
+// Initialize with configuration
 FeedbackWidget.init(config);
 
-// Manual show/hide
+// Manual control
 FeedbackWidget.show();
 FeedbackWidget.hide();
+
+// Update configuration dynamically
+FeedbackWidget.updateConfig({
+  position: 'bottom-left',
+  offset: { bottom: 100, left: 20 }
+});
 
 // Complete removal
 FeedbackWidget.destroy();
@@ -264,6 +357,10 @@ docker compose logs -f feedback-widget
 | No AI responses | Verify GEMINI_API_KEY validity, check API limits |
 | Issues not created | Check GitHub Token permissions, verify GITHUB_REPOSITORY setting |
 | CORS errors | Review next.config.js CORS configuration |
+| Wrong language displayed | Set DEFAULT_LANGUAGE in .env, restart application |
+| Widget position incorrect | Adjust `offset` values in FeedbackWidget.init() |
+| AI responses too slow | Switch to `gemini-1.5-flash` model in .env |
+| AI responses too short | Increase GEMINI_MAX_TOKENS in .env |
 
 ### Development Workflow
 

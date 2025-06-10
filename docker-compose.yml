@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  feedback-widget:
+    build: .
+    ports:
+      - "3001:3001"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=development
+    networks:
+      - feedback-network
+
+networks:
+  feedback-network:
+    driver: bridge

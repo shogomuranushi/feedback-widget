@@ -1,0 +1,138 @@
+/* Intercom風のアニメーション */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ping {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  75%, 100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+/* アニメーションクラス */
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-slideUp {
+  animation: slideUp 0.4s ease-out;
+}
+
+.animate-ping {
+  animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.animate-bounce {
+  animation: bounce 0.6s ease-in-out infinite;
+}
+
+/* グラデーション背景 */
+.gradient-blue {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.gradient-green {
+  background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+}
+
+/* カスタムシャドウ */
+.shadow-2xl {
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+.shadow-lg {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* メッセージのタイムスタンプ */
+.message-timestamp {
+  font-size: 0.75rem;
+  opacity: 0.7;
+  margin-top: 0.25rem;
+}
+
+/* スクロールバーのカスタマイズ */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f3f4f6;
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* テキストエリアの自動リサイズ */
+textarea.auto-resize {
+  resize: none;
+  overflow: hidden;
+  transition: height 0.2s ease;
+}
+
+/* フォーカスリング */
+.focus-ring:focus {
+  outline: none;
+  ring: 2px;
+  ring-color: rgba(59, 130, 246, 0.5);
+  ring-offset: 2px;
+}
+
+/* ダークモード対応 */
+@media (prefers-color-scheme: dark) {
+  .dark-mode {
+    background-color: #1f2937;
+    color: #f9fafb;
+  }
+  
+  .dark-mode .bg-white {
+    background-color: #111827;
+  }
+  
+  .dark-mode .text-gray-900 {
+    color: #f9fafb;
+  }
+  
+  .dark-mode .border-gray-200 {
+    border-color: #374151;
+  }
+}

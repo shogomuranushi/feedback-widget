@@ -2,82 +2,128 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## 基本コマンド
+## Common Development Commands
 
-### 開発・ビルド
 ```bash
-npm run dev       # 開発サーバーを開始（ポート3001）
-npm run build     # プロダクションビルド
-npm run start     # プロダクションサーバー開始
-npm run lint      # ESLintによるコード検査
+# Development server (runs on port 3001)
+npm run dev
+
+# Production build and start
+npm run build
+npm run start
+
+# Code quality and linting
+npm run lint
+
+# Testing (Note: Test files exist but no test script configured in package.json)
+# Tests are located in src/lib/__tests__/ for individual service testing
+
+# Docker development
+docker compose up --build
+docker compose logs -f feedback-widget
+
+# Environment setup
+cp .env.example .env  # Create and configure environment variables
 ```
 
-### Docker環境
+## Architecture Overview
+
+This is a Next.js 14 TypeScript application that provides an AI-powered feedback widget system with the following key components:
+
+### Core Architecture
+
+**Client-Side Widget (`/public/widget.js`)**
+- Standalone JavaScript SDK that can be embedded in any website
+- Automatically detects domain and sends with API requests for authentication
+- Reads configuration from HTML data attributes (`data-api-key`, `data-github-repo`, etc.)
+- Provides floating button UI with chat interface
+
+**API Layer (`/src/app/api/feedback/`)**
+- `chat/route.ts`: Handles AI conversations via Gemini API
+- `submit/route.ts`: Creates GitHub Issues from feedback conversations
+- Domain + API Key authentication system for security
+
+**Service Layer (`/src/lib/services/`)**
+- `AIResponseService.ts`: Orchestrates AI conversations
+- `GeminiService.ts`: Direct integration with Google Gemini AI
+- `ConversationService.ts`: Manages conversation flow logic
+
+**Authentication System (`/src/lib/utils/apiKeyAuth.ts`)**
+- Two-tier security: Basic API key list OR Domain+API key pairing
+- Environment variable configuration: `VALID_API_KEYS` or `DOMAIN_API_MAPPINGS`
+
+### Key Workflows
+
+1. **Widget Integration**: Single script tag with data attributes for configuration
+2. **Conversation Flow**: User messages → AI analysis → Automatic GitHub Issue creation after 2nd user message
+3. **Authentication**: Domain detection → API key validation → GitHub token (server-side only)
+
+### Environment Configuration
+
+Required variables in `.env`:
 ```bash
-docker compose up --build         # Dockerでアプリケーション起動
-docker compose up -d              # バックグラウンドで起動
-docker compose logs feedback-widget  # ログ確認
+GEMINI_API_KEY=your-gemini-api-key    # Google AI API key
+GITHUB_TOKEN=your-github-token        # GitHub personal access token
+GITHUB_MENTION=@claude                # User/team to mention in issues
+
+# Domain + API key pairing (required)
+DOMAIN_API_MAPPINGS=example.com:widget_prod_v1,widget_prod_v2;localhost:widget_dev;app.company.com:widget_company
 ```
 
-### CI/CD
-- GitHub Actionsでmain/developブランチpush時に自動ビルド
-- Dockerイメージは`ghcr.io/[owner]/[repo]`にpush
-- マルチステージビルドで本番最適化済み
+**Important:** GitHub repository is specified by clients via `data-github-repo` attribute, not server environment variables.
 
-## アーキテクチャ概要
+### Security Model
 
-このプロジェクトは、AI駆動のフィードバック収集からGitHub Issue自動作成を行うNext.jsアプリケーションです。
+- Client-side API keys (`widget_*` prefix) for identification only
+- Server-side GitHub tokens for actual repository access
+- Domain-based access control via `DOMAIN_API_MAPPINGS` (required)
+- GitHub repository specified by client via `data-github-repo` attribute
+- All API keys validated server-side before processing requests
 
-### コア機能フロー
-1. **ウィジェットSDK** (`public/widget.js`) - クライアント埋め込み型SDK
-2. **AI会話管理** - Gemini APIによるインタラクティブなヒアリング  
-3. **自動Issue化** - 2回目のユーザーメッセージで自動的にGitHub Issue作成
-4. **Claude Code連携** - 作成されたIssueに@claudeメンション自動挿入
+### Widget Authentication Flow
 
-### 重要なアーキテクチャパターン
+1. Widget automatically detects domain via `window.location.hostname`
+2. Sends domain + API key + repository in request headers (`X-Origin-Domain`, `X-API-Key`, `X-GitHub-Repo`)
+3. Server validates domain+key pair against `DOMAIN_API_MAPPINGS` (required)
+4. Invalid combinations or missing domain mappings return 401 Unauthorized
 
-#### セッション管理
-- インメモリセッション（`global.feedbackSessions`）
-- セッションIDベースの会話履歴管理
-- サーバー再起動でリセット（永続化なし）
+### Testing and Debugging
 
-#### AI応答サービス階層
-- `AIResponseService` - Gemini API統合とレスポンス生成
-- `ConversationService` - 会話フロー管理とプロンプト生成
-- フォールバック機能内蔵（Gemini API障害時）
+The widget can be tested by:
+1. Starting dev server: `npm run dev`
+2. Creating test HTML file with widget script tag and proper data attributes
+3. Using browser developer tools to monitor API requests and responses
+4. Checking server logs for authentication and AI processing details
 
-#### ウィジェット統合パターン
-```javascript
-// 自動初期化パターン（推奨）
-<script src="http://localhost:3001/widget.js"></script>
+### Important Implementation Notes
 
-// 手動初期化パターン
-window.FeedbackWidget.init({ position: 'bottom-right' });
-```
+- Widget automatically detects domain via `window.location.hostname`
+- All API requests include `X-Origin-Domain` header for validation
+- GitHub Issue creation is automatic after 2nd user message
+- Conversation history is maintained in server memory (not persisted)
+- CORS is configured to allow cross-origin widget embedding
+- Authentication uses domain+API key pairing exclusively (no fallback)
 
-### 環境変数
-必須設定：
-```bash
-GEMINI_API_KEY=your-gemini-api-key    # Gemini AI API
-GITHUB_TOKEN=your-github-token        # GitHub API（repo権限必要）
-GITHUB_REPOSITORY=owner/repo          # Issue作成先リポジトリ
-GITHUB_MENTION=@claude                # Issue作成時のメンション（デフォルト）
-```
+### Debugging and Development Tips
 
-### API設計
-- `/api/feedback/chat` - AIとの会話
-- `/api/feedback/submit` - GitHub Issue作成
-- 全APIでCORS有効（`setCorsHeaders`関数）
-- 入力値検証とサニタイゼーション実装
+- Use browser DevTools Network tab to monitor API requests (`X-API-Key`, `X-Origin-Domain` headers)
+- Server logs show authentication validation details and Gemini API interactions
+- Widget SDK is a standalone JavaScript file - no build process needed for widget changes
+- Test authentication by temporarily modifying `DOMAIN_API_MAPPINGS` in `.env`
+- For widget integration testing, create simple HTML files in `/public/` folder
 
-### セキュリティ実装
-- セッションID形式検証（`isValidSessionId`）
-- メッセージ内容検証（`validateMessageContent`）
-- フィードバックデータ検証（`validateFeedbackData`）
-- 入力値サニタイゼーション（`sanitizeInput`）
-- APIキーはサーバーサイドのみアクセス
+### Session Management Architecture
 
-### デプロイメント設定
-- Next.js `output: 'standalone'`でDocker最適化
-- 非rootユーザー（nextjs:1001）で実行
-- マルチステージビルドで最小イメージサイズ
+The application uses a global in-memory session store (`global.feedbackSessions`) that:
+- Maps session IDs to conversation message arrays
+- Persists only during server runtime (resets on restart)
+- Automatically generates session IDs in widget (`session` + random string)
+- Validates session ID format server-side (alphanumeric + underscore/hyphen only)
+
+### AI Integration Patterns
+
+The Gemini AI integration follows a layered approach:
+- `GeminiService`: Direct Google AI API integration with safety settings
+- `AIResponseService`: Orchestrates conversation flow and handles fallbacks
+- `ConversationService`: Manages conversation state and generates contextual prompts
+- Error handling includes specific Gemini API error types (quota, permission, network)

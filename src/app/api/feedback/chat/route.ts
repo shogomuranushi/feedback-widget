@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { AIResponseService } from '@/lib/services/AIResponseService';
 import { Message } from '@/lib/types';
 import { isValidSessionId, validateMessageContent, sanitizeInput } from '@/lib/utils/security';
+import { validateApiKey } from '@/lib/utils/apiKeyAuth';
 
 // セッション管理用の簡易インメモリストレージ（グローバル共有）
 declare global {
@@ -17,7 +18,7 @@ const sessions = global.feedbackSessions;
 const setCorsHeaders = (response: NextResponse) => {
   response.headers.set('Access-Control-Allow-Origin', '*');
   response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-API-Key, X-GitHub-Repo, X-Origin-Domain');
   return response;
 };
 
@@ -30,26 +31,52 @@ export async function OPTIONS(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const { session_id, message } = await request.json();
+    
+    // ヘッダーからAPI Key、GitHubリポジトリ、ドメインを取得
+    const apiKey = request.headers.get('X-API-Key');
+    const githubRepo = request.headers.get('X-GitHub-Repo');
+    const originDomain = request.headers.get('X-Origin-Domain');
+    
+    // API Key + ドメインセット認証
+    const apiKeyValidation = validateApiKey(apiKey, originDomain);
+    if (!apiKeyValidation.isValid) {
+      console.log('API key validation failed:', apiKeyValidation.error);
+      return setCorsHeaders(NextResponse.json(
+        { error: apiKeyValidation.error || 'Invalid API key' },
+        { status: 401 }
+      ));
+    }
+    
+    console.log('API key validated successfully:', apiKeyValidation.keyInfo?.description);
 
     if (!session_id || !message) {
-      return NextResponse.json(
+      return setCorsHeaders(NextResponse.json(
         { error: 'session_id and message are required' },
         { status: 400 }
-      );
+      ));
     }
 
     if (!isValidSessionId(session_id)) {
-      return NextResponse.json({ error: 'Invalid session ID format' }, { status: 400 });
+      return setCorsHeaders(NextResponse.json(
+        { error: 'Invalid session ID format' }, 
+        { status: 400 }
+      ));
     }
 
     const messageValidation = validateMessageContent(message);
     if (!messageValidation.isValid) {
-      return NextResponse.json({ error: messageValidation.error }, { status: 400 });
+      return setCorsHeaders(NextResponse.json(
+        { error: messageValidation.error }, 
+        { status: 400 }
+      ));
     }
 
     const geminiApiKey = process.env.GEMINI_API_KEY;
     if (!geminiApiKey) {
-      return NextResponse.json({ error: 'Gemini API key not configured' }, { status: 500 });
+      return setCorsHeaders(NextResponse.json(
+        { error: 'Gemini API key not configured' }, 
+        { status: 500 }
+      ));
     }
 
     if (!sessions.has(session_id)) {

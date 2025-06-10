@@ -88,10 +88,41 @@ GEMINI_MODEL=gemini-2.5-pro-preview-06-05
 
 # GitHub Configuration
 GITHUB_TOKEN=your-github-token
-GITHUB_REPOSITORY=owner/repo
 GITHUB_MENTION=@claude
+
+# Domain-API Key Mapping (Required)
+DOMAIN_API_MAPPINGS=example.com:widget_prod_key1,widget_prod_key2;localhost:widget_dev_key;app.company.com:widget_company_prod
 EOF
 ```
+
+#### Domain-API Key Authentication Setup
+
+Configure domain-specific API key mappings:
+
+```bash
+# Domain-specific API key mappings
+DOMAIN_API_MAPPINGS=example.com:widget_prod_v1,widget_prod_v2;localhost:widget_dev_local;app.company.com:widget_company_main
+
+# Real-world examples
+DOMAIN_API_MAPPINGS=staging.myapp.com:widget_staging;production.myapp.com:widget_prod_main,widget_prod_backup;localhost:widget_dev,widget_test
+
+# Multiple domains and keys
+DOMAIN_API_MAPPINGS=app1.com:widget_app1_key;app2.com:widget_app2_key1,widget_app2_key2;internal.company.com:widget_internal
+```
+
+**Domain Mapping Format:**
+- `domain:key1,key2;domain2:key3`
+- Semicolon (`;`) separates domains
+- Colon (`:`) separates domain from keys
+- Comma (`,`) separates multiple keys for same domain
+
+**Important Notes:**
+- All API keys must start with `widget_` prefix
+- Keys are case-sensitive
+- No spaces around separators
+- `DOMAIN_API_MAPPINGS` is required - no fallback authentication
+- Domain detection is automatic via widget
+- Each domain must have at least one authorized API key
 
 #### GitHub Token Setup
 
@@ -125,12 +156,15 @@ docker compose logs -f feedback-widget
 # Install dependencies
 npm install
 
-# Start development server
+# Start development server (runs on port 3001)
 npm run dev
 
 # Production build
 npm run build
 npm run start
+
+# Code quality check
+npm run lint
 ```
 
 ### 4. Widget Integration
@@ -146,8 +180,15 @@ npm run start
 <body>
   <!-- Your site content -->
   
-  <!-- Feedback Widget -->
+  <!-- Basic Feedback Widget -->
   <script src="http://localhost:3001/widget.js"></script>
+  
+  <!-- Advanced: With API Key and Repository Specification -->
+  <script src="http://localhost:3001/widget.js"
+          data-api-key="widget_abc123"
+          data-github-repo="company/frontend-app"
+          data-position="bottom-right">
+  </script>
 </body>
 </html>
 ```
@@ -191,10 +232,32 @@ export default function App({ Component, pageProps }) {
 
 ### 5. Widget Configuration
 
-#### Basic Configuration Options
+#### Basic Integration Examples
+
+**Production Environment:**
+```html
+<!-- Production site with domain-specific API key -->
+<script src="https://your-widget-server.com/widget.js"
+        data-api-key="widget_prod_main"
+        data-github-repo="your-org/frontend-app"
+        data-position="bottom-right">
+</script>
+```
+
+**Development Environment:**
+```html
+<!-- Development with localhost -->
+<script src="http://localhost:3001/widget.js"
+        data-api-key="widget_dev_local"
+        data-github-repo="your-org/frontend-app"
+        data-position="bottom-left">
+</script>
+```
+
+#### Advanced Configuration Options
 
 ```javascript
-// Custom configuration
+// Custom configuration (if needed)
 FeedbackWidget.init({
   position: 'bottom-right',  // 'bottom-left' | 'bottom-right'
   theme: 'auto',            // 'light' | 'dark' | 'auto'
@@ -204,6 +267,52 @@ FeedbackWidget.init({
   }
 });
 ```
+
+#### API Key and Repository Configuration
+
+For multi-tenant deployments or dynamic repository targeting, use data attributes:
+
+```html
+<!-- Specify API Key for client identification -->
+<script src="http://localhost:3001/widget.js"
+        data-api-key="widget_your_unique_key"
+        data-github-repo="owner/repository-name">
+</script>
+
+<!-- Multiple widgets for different repositories -->
+<script src="http://localhost:3001/widget.js"
+        data-api-key="widget_frontend_team"
+        data-github-repo="company/frontend-app"
+        data-position="bottom-right">
+</script>
+
+<script src="http://localhost:3001/widget.js"
+        data-api-key="widget_backend_team"
+        data-github-repo="company/backend-api"
+        data-position="bottom-left">
+</script>
+```
+
+**API Key Format Requirements:**
+- Must start with `widget_` prefix
+- Must be mapped to domain in server's `DOMAIN_API_MAPPINGS` environment variable
+- Example: `widget_abc123`, `widget_team_frontend`, `widget_prod_v1`
+
+**Repository Format:**
+- Must be in `owner/repository` format (specified in data-github-repo)
+- Example: `company/frontend-app`, `myorg/mobile-app`
+
+**Server-side Configuration:**
+- GitHub tokens remain securely server-side in environment variables
+- GitHub repository specified by client via data-github-repo attribute
+- API keys validated against domain-specific mappings
+- No permissions management needed (assumes full repository access)
+
+**Security:**
+- All API requests require valid domain + API key authentication
+- Domain-API key pairs must be pre-configured in server environment variables
+- Invalid keys or unauthorized domains return 401 Unauthorized error
+- Widget automatically sends current domain with each request
 
 #### Widget Position Adjustment
 
@@ -228,6 +337,13 @@ FeedbackWidget.init({
     right: 30    // 30px from right edge
   }
 });
+
+// HTML data attribute configuration
+<script src="http://localhost:3001/widget.js"
+        data-position="bottom-left"
+        data-bottom="100"
+        data-left="20">
+</script>
 ```
 
 #### Language Configuration
@@ -378,6 +494,18 @@ npm run build
 docker compose up --build
 ```
 
+### Environment Variables Reference
+
+| Variable | Description | Required | Example |
+|----------|-------------|----------|---------|
+| `GEMINI_API_KEY` | Google Gemini AI API key | Yes | `AIza...` |
+| `GEMINI_MODEL` | Gemini model to use | No | `gemini-2.5-pro-preview-06-05` |
+| `GITHUB_TOKEN` | GitHub personal access token | Yes | `ghp_...` |
+| `GITHUB_MENTION` | User/team to mention in issues | No | `@claude` |
+| `DOMAIN_API_MAPPINGS` | Domain-API key mappings (required) | Yes | `example.com:widget_key1;localhost:widget_dev` |
+
+**Note:** GitHub repository is specified by clients via `data-github-repo` attribute, not server environment variables.
+
 ## 📋 API Specification
 
 ### Endpoints
@@ -390,12 +518,19 @@ docker compose up --build
 ### Request Examples
 
 ```bash
-# AI conversation
+# AI conversation (basic)
 curl -X POST http://localhost:3001/api/feedback/chat \
   -H "Content-Type: application/json" \
   -d '{"session_id": "session123", "message": "I have a feature request"}'
 
-# Issue creation
+# AI conversation (with API key and repository)
+curl -X POST http://localhost:3001/api/feedback/chat \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: widget_abc123" \
+  -H "X-GitHub-Repo: company/frontend-app" \
+  -d '{"session_id": "session123", "message": "I have a feature request"}'
+
+# Issue creation (basic)
 curl -X POST http://localhost:3001/api/feedback/submit \
   -H "Content-Type: application/json" \
   -d '{
@@ -404,14 +539,43 @@ curl -X POST http://localhost:3001/api/feedback/submit \
     "description": "Detailed description",
     "labels": ["enhancement", "feedback"]
   }'
+
+# Issue creation (with API key and repository)
+curl -X POST http://localhost:3001/api/feedback/submit \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: widget_team_frontend" \
+  -H "X-GitHub-Repo: company/frontend-app" \
+  -d '{
+    "session_id": "session123",
+    "title": "New feature request",
+    "description": "Detailed description",
+    "labels": ["enhancement", "feedback"]
+  }'
 ```
+
+### Headers
+
+| Header | Description | Required | Format |
+|--------|-------------|----------|--------|
+| `Content-Type` | Request content type | Yes | `application/json` |
+| `X-API-Key` | Client identification key | Yes | `widget_*` (must start with `widget_`) |
+| `X-GitHub-Repo` | Target GitHub repository | Optional | `owner/repository` |
+| `X-Origin-Domain` | Widget's current domain | Auto | Hostname (e.g., `example.com`, `localhost`) |
+
+**Note:** `X-Origin-Domain` is automatically sent by the widget.js and used for domain-API key pairing validation when `DOMAIN_API_MAPPINGS` is configured.
 
 ## 🔒 Security
 
-- API keys managed server-side only
-- Input validation and sanitization implemented
-- Session ID format validation
-- CORS configuration for origin restrictions
+- **Domain-API Key Authentication**: All requests require valid domain + API key pairs
+- **Server-side Validation**: Keys validated against `DOMAIN_API_MAPPINGS` only
+- **Automatic Domain Detection**: Widget automatically sends current domain for validation
+- **Client-specified Repositories**: GitHub repository specified by client via data attributes
+- **GitHub Token Security**: GitHub tokens remain secure in server environment variables
+- **No Permissions Management**: Assumes full repository access (simplified deployment)
+- **Input Validation**: All user inputs validated and sanitized
+- **Session ID Validation**: Alphanumeric format validation for session IDs
+- **CORS Configuration**: Configurable cross-origin request handling
+- **401 Unauthorized**: Invalid keys, unauthorized domains, or missing authentication return proper error responses
 
 ## 📄 License
 

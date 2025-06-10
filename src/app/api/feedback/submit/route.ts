@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Octokit } from '@octokit/rest';
 import { i18nService } from '../../../../lib/i18n';
 import { isValidSessionId, validateFeedbackData, sanitizeInput } from '../../../../lib/utils/security';
+import { validateApiKey } from '../../../../lib/utils/apiKeyAuth';
 
 const setCorsHeaders = (response: NextResponse) => {
   response.headers.set('Access-Control-Allow-Origin', '*');
   response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-API-Key, X-GitHub-Repo, X-Origin-Domain');
   return response;
 };
 
@@ -40,12 +41,31 @@ export async function POST(request: NextRequest) {
       return createErrorResponse(feedbackValidation.error || 'Invalid feedback data', 400);
     }
 
+    // ヘッダーからAPI Key、GitHubリポジトリ、ドメインを取得
+    const apiKey = request.headers.get('X-API-Key');
+    const githubRepo = request.headers.get('X-GitHub-Repo');
+    const originDomain = request.headers.get('X-Origin-Domain');
+    
+    // API Key + ドメインセット認証
+    const apiKeyValidation = validateApiKey(apiKey, originDomain);
+    if (!apiKeyValidation.isValid) {
+      console.log('API key validation failed:', apiKeyValidation.error);
+      return createErrorResponse(apiKeyValidation.error || 'Invalid API key', 401);
+    }
+    
+    console.log('API key validated successfully:', apiKeyValidation.keyInfo?.description);
+    
+    // GitHub設定の取得（リポジトリはクライアント側で必須指定）
+    const repository = githubRepo;
     const githubToken = process.env.GITHUB_TOKEN;
-    const repository = process.env.GITHUB_REPOSITORY;
     const githubMention = process.env.GITHUB_MENTION || '@claude';
 
-    if (!githubToken || !repository) {
-      return createErrorResponse('GitHub configuration not found', 500);
+    if (!githubToken) {
+      return createErrorResponse('GitHub token not configured', 500);
+    }
+
+    if (!repository) {
+      return createErrorResponse('GitHub repository must be specified in X-GitHub-Repo header', 400);
     }
 
     const [owner, repo] = repository.split('/');

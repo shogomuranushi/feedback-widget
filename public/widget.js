@@ -11,11 +11,47 @@
   // API Base URL
   const API_BASE = 'http://localhost:3001';
   
-  // 共通ヘッダー生成（シンプル版）
-  function getHeaders() {
+  // 現在のドメインを取得
+  function getCurrentDomain() {
+    return window.location.hostname;
+  }
+
+  // 設定情報をscriptタグから取得
+  function getScriptConfig() {
+    const script = document.querySelector('script[src*="widget.js"]');
+    if (!script) return {};
+    
     return {
+      apiKey: script.dataset.apiKey,
+      githubRepo: script.dataset.githubRepo,
+      position: script.dataset.position || 'bottom-right',
+      theme: script.dataset.theme || 'auto',
+      bottom: parseInt(script.dataset.bottom || '24'),
+      right: parseInt(script.dataset.right || '24'),
+      left: parseInt(script.dataset.left || '24'),
+      domain: getCurrentDomain()
+    };
+  }
+
+  // 共通ヘッダー生成（API Key + Domain対応版）
+  function getHeaders() {
+    const config = getScriptConfig();
+    const headers = {
       'Content-Type': 'application/json'
     };
+    
+    // API Key、GitHubリポジトリ、ドメインをヘッダーに追加
+    if (config.apiKey) {
+      headers['X-API-Key'] = config.apiKey;
+    }
+    if (config.githubRepo) {
+      headers['X-GitHub-Repo'] = config.githubRepo;
+    }
+    if (config.domain) {
+      headers['X-Origin-Domain'] = config.domain;
+    }
+    
+    return headers;
   }
 
   // ウィジェットSDK
@@ -198,7 +234,8 @@
         });
 
         if (!response.ok) {
-          throw new Error(`API request failed: ${response.status}`);
+          const errorText = await response.text();
+          throw new Error(`API request failed: ${response.status} - ${errorText}`);
         }
 
         const data = await response.json();
@@ -206,12 +243,17 @@
         // ローディング削除
         this._removeLoadingMessage();
 
+        // レスポンスデータの検証
+        if (!data || !data.content) {
+          throw new Error('Invalid response: missing content');
+        }
+
         // AIレスポンスを追加
         const assistantMessage = {
           id: Math.random().toString(36).substring(2, 15),
           role: 'assistant',
           content: data.content,
-          timestamp: new Date(data.timestamp)
+          timestamp: new Date(data.timestamp || new Date())
         };
 
         this._session.messages.push(assistantMessage);
@@ -527,14 +569,14 @@
   window.FeedbackWidget = FeedbackWidgetSDK;
 
   function autoInit() {
-    const script = document.querySelector('script[src*="widget.js"]');
+    const config = getScriptConfig();
     FeedbackWidgetSDK.init({
-      position: script?.dataset.position || 'bottom-right',
-      theme: script?.dataset.theme || 'auto',
+      position: config.position,
+      theme: config.theme,
       offset: {
-        bottom: parseInt(script?.dataset.bottom || '24'),
-        right: parseInt(script?.dataset.right || '24'),
-        left: parseInt(script?.dataset.left || '24')
+        bottom: config.bottom,
+        right: config.right,
+        left: config.left
       }
     });
   }

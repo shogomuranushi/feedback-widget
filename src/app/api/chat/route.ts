@@ -84,24 +84,26 @@ export async function POST(request: NextRequest) {
     let errorMessage = 'Internal server error';
     let statusCode = 500;
     
-    if (error.message?.includes('API key')) {
-      errorMessage = 'AI service configuration error';
-      statusCode = 503;
-    } else if (error.message?.includes('Permission denied')) {
-      errorMessage = 'AI service access denied';
-      statusCode = 503;
-    } else if (error.message?.includes('quota')) {
-      errorMessage = 'AI service temporarily unavailable - quota exceeded';
-      statusCode = 503;
-    } else if (error.message?.includes('Network')) {
-      errorMessage = 'Unable to connect to AI service';
-      statusCode = 503;
+    if (error instanceof Error) {
+      if (error.message?.includes('API key')) {
+        errorMessage = 'AI service configuration error';
+        statusCode = 503;
+      } else if (error.message?.includes('Permission denied')) {
+        errorMessage = 'AI service access denied';
+        statusCode = 503;
+      } else if (error.message?.includes('quota')) {
+        errorMessage = 'AI service temporarily unavailable - quota exceeded';
+        statusCode = 503;
+      } else if (error.message?.includes('Network')) {
+        errorMessage = 'Unable to connect to AI service';
+        statusCode = 503;
+      }
     }
     
     return NextResponse.json(
       { 
         error: errorMessage,
-        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        details: process.env.NODE_ENV === 'development' && error instanceof Error ? error.message : undefined
       },
       { status: statusCode }
     );

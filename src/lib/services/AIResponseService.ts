@@ -62,11 +62,13 @@ export class AIResponseService {
 
     } catch (error) {
       console.error('AI response generation failed:', error);
-      console.error('Error details:', {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
-      });
+      if (error instanceof Error) {
+        console.error('Error details:', {
+          message: error.message,
+          stack: error.stack,
+          name: error.name
+        });
+      }
       
       // エラー時のフォールバック
       console.log('Returning fallback response due to error');

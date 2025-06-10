@@ -1,7 +1,6 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 import { Message } from './types';
 import { ConfigService } from './config';
-import { AI_CONSTANTS } from './config/constants';
 
 export class GeminiService {
   private genAI: GoogleGenerativeAI;
@@ -22,8 +21,30 @@ export class GeminiService {
       this.genAI = new GoogleGenerativeAI(config.apiKey);
       this.model = this.genAI.getGenerativeModel({ 
         model: config.model,
-        generationConfig: AI_CONSTANTS.GENERATION_CONFIG,
-        safetySettings: AI_CONSTANTS.SAFETY_SETTINGS,
+        generationConfig: {
+          temperature: 0.7,
+          topK: 40,
+          topP: 0.95,
+          maxOutputTokens: 1024,
+        },
+        safetySettings: [
+          {
+            category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+            threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+          },
+          {
+            category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+            threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+          },
+          {
+            category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+            threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+          },
+          {
+            category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+            threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+          },
+        ],
       });
       
       console.log('GeminiService initialized successfully');
@@ -96,24 +117,23 @@ export class GeminiService {
         };
       }
     } catch (error) {
-      console.error('Gemini API error details:', {
-        message: error.message,
-        stack: error.stack,
-        name: error.name,
-        cause: error.cause
-      });
+      console.error('Gemini API error details:', error);
       
       // より具体的なエラーメッセージを返す
-      if (error.message?.includes('API_KEY')) {
-        throw new Error('Gemini API key is invalid or missing');
-      } else if (error.message?.includes('PERMISSION_DENIED')) {
-        throw new Error('Permission denied - check API key permissions');
-      } else if (error.message?.includes('QUOTA_EXCEEDED')) {
-        throw new Error('API quota exceeded - please try again later');
-      } else if (error.message?.includes('NETWORK') || error.code === 'ENOTFOUND') {
-        throw new Error('Network connection failed - please check your internet connection');
+      if (error instanceof Error) {
+        if (error.message?.includes('API_KEY')) {
+          throw new Error('Gemini API key is invalid or missing');
+        } else if (error.message?.includes('PERMISSION_DENIED')) {
+          throw new Error('Permission denied - check API key permissions');
+        } else if (error.message?.includes('QUOTA_EXCEEDED')) {
+          throw new Error('API quota exceeded - please try again later');
+        } else if (error.message?.includes('NETWORK') || (error as any).code === 'ENOTFOUND') {
+          throw new Error('Network connection failed - please check your internet connection');
+        } else {
+          throw new Error(`Gemini API error: ${error.message}`);
+        }
       } else {
-        throw new Error(`Gemini API error: ${error.message || 'Unknown error'}`);
+        throw new Error('Gemini API error: Unknown error');
       }
     }
   }

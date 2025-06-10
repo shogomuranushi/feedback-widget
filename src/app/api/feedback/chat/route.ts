@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
     return setCorsHeaders(NextResponse.json(responseData));
 
   } catch (error) {
-    const getErrorInfo = (err: any) => {
+    const getErrorInfo = (err: any): [string, number] => {
       if (err.message?.includes('API key')) return ['AI service configuration error', 503];
       if (err.message?.includes('Permission denied')) return ['AI service access denied', 503];
       if (err.message?.includes('quota')) return ['AI service temporarily unavailable - quota exceeded', 503];
@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
     return setCorsHeaders(NextResponse.json(
       { 
         error: errorMessage,
-        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        details: process.env.NODE_ENV === 'development' && error instanceof Error ? error.message : undefined
       },
       { status: statusCode }
     ));

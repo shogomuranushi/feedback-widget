@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
     const feedbackValidation = validateFeedbackData(feedback_data);
     if (!feedbackValidation.isValid) {
       console.log('Invalid feedback data:', feedbackValidation.error);
-      return createErrorResponse(feedbackValidation.error, 400);
+      return createErrorResponse(feedbackValidation.error || 'Invalid feedback data', 400);
     }
 
     // 環境変数からGitHub設定を取得

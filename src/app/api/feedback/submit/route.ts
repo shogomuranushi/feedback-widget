@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
 
     const feedbackValidation = validateFeedbackData(feedback_data);
     if (!feedbackValidation.isValid) {
-      return createErrorResponse(feedbackValidation.error, 400);
+      return createErrorResponse(feedbackValidation.error || 'Invalid feedback data', 400);
     }
 
     const githubToken = process.env.GITHUB_TOKEN;
@@ -106,12 +106,16 @@ ${githubMention} 上記のフィードバックについて開発とPRの作成�
     return setCorsHeaders(NextResponse.json(issueData));
 
   } catch (error) {
-    const errorMessage = error && typeof error === 'object' && 'status' in error && 'message' in error
-      ? error.message || 'Unknown GitHub error'
+    const errorMessage = error && typeof error === 'object' && 'message' in error
+      ? (error as any).message || 'Unknown GitHub error'
       : 'Failed to create GitHub issue';
     
+    const errorStatus = error && typeof error === 'object' && 'status' in error 
+      ? (error as any).status 
+      : undefined;
+    
     return setCorsHeaders(NextResponse.json(
-      { error: errorMessage, status: error?.status },
+      { error: errorMessage, status: errorStatus },
       { status: 500 }
     ));
   }

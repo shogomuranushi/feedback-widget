@@ -37,6 +37,7 @@ Click the blue feedback button in the bottom-right corner of the screen to open 
 #### 3. Automatic Issue Creation
 - After your second message, a GitHub Issue is automatically created
 - AI coding agents immediately begin analyzing and implementing your request
+- For automatic coding implementation, refer to methods like Claude Code Actions
 
 ### Example Conversations
 

@@ -68,6 +68,9 @@ GITHUB_MENTION=@claude                # User/team to mention in issues
 
 # Domain + API key pairing (required)
 DOMAIN_API_MAPPINGS=example.com:widget_prod_v1,widget_prod_v2;localhost:widget_dev;app.company.com:widget_company
+
+# Debug mode - allow all domains (development only)
+# DOMAIN_API_MAPPINGS=all:widget_debug_key
 ```
 
 **Important:** GitHub repository is specified by clients via `data-github-repo` attribute, not server environment variables.

@@ -117,6 +117,12 @@ DOMAIN_API_MAPPINGS=app1.com:widget_app1_key;app2.com:widget_app2_key1,widget_ap
 - Colon (`:`) separates domain from keys
 - Comma (`,`) separates multiple keys for same domain
 
+**Debug Mode (Allow All Domains):**
+```bash
+# WARNING: Use only for development/debugging
+DOMAIN_API_MAPPINGS=all:widget_debug_key
+```
+
 **Important Notes:**
 - All API keys must start with `widget_` prefix
 - Keys are case-sensitive
@@ -124,6 +130,7 @@ DOMAIN_API_MAPPINGS=app1.com:widget_app1_key;app2.com:widget_app2_key1,widget_ap
 - `DOMAIN_API_MAPPINGS` is required - no fallback authentication
 - Domain detection is automatic via widget
 - Each domain must have at least one authorized API key
+- `all` keyword allows any domain (debug use only)
 
 #### GitHub Token Setup
 

@@ -99,6 +99,21 @@ export function validateApiKey(apiKey: string | null, domain?: string | null): A
 
   console.log(`Validating domain-API key pair: ${domain} + ${apiKey}`);
   
+  // 特別なキーワード "all" ですべてのドメインを許可
+  if (domainMappings['all']) {
+    console.log('Using "all" domain mapping - allowing all domains');
+    if (domainMappings['all'].includes(apiKey)) {
+      return {
+        isValid: true,
+        keyInfo: {
+          key: apiKey,
+          domain: domain,
+          description: `Valid API key for all domains (debug mode)`
+        }
+      };
+    }
+  }
+  
   // ドメインが登録されているかチェック
   if (!domainMappings[domain]) {
     return {

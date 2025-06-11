@@ -8,8 +8,25 @@
     return;
   }
 
-  // API Base URL
-  const API_BASE = 'http://localhost:3001';
+  // API Base URLを自動検出
+  function getApiBase() {
+    const script = document.querySelector('script[src*="widget.js"]');
+    if (!script || !script.src) {
+      // フォールバック（開発環境等）
+      return 'http://localhost:3001';
+    }
+    
+    try {
+      const url = new URL(script.src);
+      // widget.jsと同じオリジンをAPIベースとして使用
+      return `${url.protocol}//${url.host}`;
+    } catch (e) {
+      // URL解析エラー時のフォールバック
+      return 'http://localhost:3001';
+    }
+  }
+  
+  const API_BASE = getApiBase();
   
   // 現在のドメインを取得
   function getCurrentDomain() {

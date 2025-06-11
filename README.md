@@ -18,6 +18,7 @@ An intelligent feedback collection system that transforms user conversations int
 - 🎨 **Embeddable SDK** - Easy integration into any website with a single script tag
 - 🔧 **AI Coding Agent Integration** - Issues are automatically tagged with @claude mentions for seamless handoff to AI coding agents like Claude Code
 - ⚡ **Zero-to-Code Pipeline** - From user feedback to automated development in seconds
+- 🔗 **Auto-Detect API Endpoint** - Widget automatically detects API endpoint from script source
 
 > **🚀 Complete Automation**: Once a GitHub Issue is created, AI coding agents like [Claude Code](https://claude.ai/code) can automatically analyze the requirements, implement features, write tests, and submit pull requests - creating a fully automated development pipeline from user feedback to deployed code.
 
@@ -181,6 +182,7 @@ npm run lint
   <!-- Your site content -->
   
   <!-- Basic Feedback Widget -->
+  <!-- API endpoint is automatically detected from widget.js location -->
   <script src="http://localhost:3001/widget.js"></script>
   
   <!-- Advanced: With API Key and Repository Specification -->
@@ -202,10 +204,16 @@ import { useEffect } from 'react';
 export default function FeedbackWidget() {
   useEffect(() => {
     const script = document.createElement('script');
+    // API endpoint will be automatically detected from script src
     script.src = process.env.NODE_ENV === 'production' 
-      ? 'https://your-domain.com/widget.js'
+      ? 'https://your-widget-server.com/widget.js'
       : 'http://localhost:3001/widget.js';
     script.async = true;
+    
+    // Set data attributes for configuration
+    script.dataset.apiKey = process.env.NEXT_PUBLIC_WIDGET_API_KEY || 'widget_dev';
+    script.dataset.githubRepo = process.env.NEXT_PUBLIC_GITHUB_REPO || 'your-org/your-app';
+    
     document.body.appendChild(script);
 
     return () => {
@@ -237,6 +245,7 @@ export default function App({ Component, pageProps }) {
 **Production Environment:**
 ```html
 <!-- Production site with domain-specific API key -->
+<!-- API endpoint is automatically detected from script src -->
 <script src="https://your-widget-server.com/widget.js"
         data-api-key="widget_prod_main"
         data-github-repo="your-org/frontend-app"
@@ -247,6 +256,7 @@ export default function App({ Component, pageProps }) {
 **Development Environment:**
 ```html
 <!-- Development with localhost -->
+<!-- API endpoint is automatically detected as http://localhost:3001 -->
 <script src="http://localhost:3001/widget.js"
         data-api-key="widget_dev_local"
         data-github-repo="your-org/frontend-app"

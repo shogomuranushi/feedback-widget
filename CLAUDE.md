@@ -97,6 +97,7 @@ The widget can be tested by:
 
 ### Important Implementation Notes
 
+- Widget automatically detects API endpoint from its own script src URL
 - Widget automatically detects domain via `window.location.hostname`
 - All API requests include `X-Origin-Domain` header for validation
 - GitHub Issue creation is automatic after 2nd user message

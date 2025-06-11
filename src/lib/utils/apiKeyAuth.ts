@@ -23,6 +23,8 @@ export interface DomainApiKeyMapping {
  */
 function getDomainApiKeyMappings(): DomainApiKeyMapping {
   const mappingsEnv = process.env.DOMAIN_API_MAPPINGS;
+  console.log('Raw DOMAIN_API_MAPPINGS:', mappingsEnv); // デバッグログ追加
+  
   if (!mappingsEnv) {
     console.warn('DOMAIN_API_MAPPINGS environment variable not set - domain validation disabled');
     return {};
@@ -33,16 +35,20 @@ function getDomainApiKeyMappings(): DomainApiKeyMapping {
   try {
     // セミコロンでドメインエントリを分割
     const domainEntries = mappingsEnv.split(';');
+    console.log('Domain entries after split:', domainEntries); // デバッグログ追加
     
     for (const entry of domainEntries) {
       const [domain, keysStr] = entry.split(':');
+      console.log(`Processing entry - domain: "${domain}", keysStr: "${keysStr}"`); // デバッグログ追加
+      
       if (domain && keysStr) {
         const keys = keysStr.split(',').map(key => key.trim()).filter(Boolean);
         mappings[domain.trim()] = keys;
+        console.log(`Added mapping: ${domain.trim()} -> [${keys.join(', ')}]`); // デバッグログ追加
       }
     }
     
-    console.log('Domain-API key mappings loaded:', Object.keys(mappings));
+    console.log('Final domain-API key mappings:', JSON.stringify(mappings, null, 2)); // 詳細なデバッグログ
     return mappings;
   } catch (error) {
     console.error('Failed to parse DOMAIN_API_MAPPINGS:', error);

@@ -108,7 +108,11 @@ export function validateApiKey(apiKey: string | null, domain?: string | null): A
   // 特別なキーワード "all" ですべてのドメインを許可
   if (domainMappings['all']) {
     console.log('Using "all" domain mapping - allowing all domains');
+    console.log('Available keys in "all" mapping:', domainMappings['all']); // デバッグログ追加
+    console.log('Looking for API key:', apiKey); // デバッグログ追加
+    
     if (domainMappings['all'].includes(apiKey)) {
+      console.log('API key found in "all" mapping - authentication successful'); // デバッグログ追加
       return {
         isValid: true,
         keyInfo: {
@@ -117,6 +121,8 @@ export function validateApiKey(apiKey: string | null, domain?: string | null): A
           description: `Valid API key for all domains (debug mode)`
         }
       };
+    } else {
+      console.log('API key NOT found in "all" mapping - authentication failed'); // デバッグログ追加
     }
   }
   

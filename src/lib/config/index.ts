@@ -26,25 +26,11 @@ export class ConfigService {
    * Gemini API設定を取得
    */
   static getGeminiConfig() {
-    console.log('Loading Gemini config...');
-    console.log('Environment variables:', {
-      NODE_ENV: process.env.NODE_ENV,
-      GEMINI_API_KEY: process.env.GEMINI_API_KEY ? 'Set (length: ' + process.env.GEMINI_API_KEY.length + ')' : 'Not set',
-      GEMINI_MODEL: process.env.GEMINI_MODEL || 'Not set (will use default)',
-      GEMINI_TIMEOUT: process.env.GEMINI_TIMEOUT || 'Not set (will use default)'
-    });
-    
     const config = {
       apiKey: this.getRequiredEnv('GEMINI_API_KEY'),
-      model: this.getOptionalEnv('GEMINI_MODEL', 'gemini-2.5-flash-preview-05-20'),
+      model: this.getOptionalEnv('GEMINI_MODEL', 'gemini-2.0-flash'),
       timeout: parseInt(this.getOptionalEnv('GEMINI_TIMEOUT', '60000')),
     };
-    
-    console.log('Gemini config created:', {
-      hasApiKey: !!config.apiKey,
-      model: config.model,
-      timeout: config.timeout
-    });
     
     return config;
   }

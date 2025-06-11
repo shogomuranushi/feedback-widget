@@ -40,14 +40,11 @@ export async function POST(request: NextRequest) {
     // API Key + ドメインセット認証
     const apiKeyValidation = validateApiKey(apiKey, originDomain);
     if (!apiKeyValidation.isValid) {
-      console.log('API key validation failed:', apiKeyValidation.error);
       return setCorsHeaders(NextResponse.json(
         { error: apiKeyValidation.error || 'Invalid API key' },
         { status: 401 }
       ));
     }
-    
-    console.log('API key validated successfully:', apiKeyValidation.keyInfo?.description);
 
     if (!session_id || !message) {
       return setCorsHeaders(NextResponse.json(

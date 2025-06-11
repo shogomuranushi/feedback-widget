@@ -7,16 +7,8 @@ export class GeminiService {
   private model: any;
 
   constructor() {
-    console.log('Initializing GeminiService...');
-    
     try {
       const config = ConfigService.getGeminiConfig();
-      console.log('Gemini config loaded:', {
-        hasApiKey: !!config.apiKey,
-        apiKeyPrefix: config.apiKey?.substring(0, 10) + '...',
-        model: config.model,
-        timeout: config.timeout
-      });
       
       this.genAI = new GoogleGenerativeAI(config.apiKey);
       this.model = this.genAI.getGenerativeModel({ 
@@ -46,8 +38,6 @@ export class GeminiService {
           },
         ],
       });
-      
-      console.log('GeminiService initialized successfully');
     } catch (error) {
       console.error('Failed to initialize GeminiService:', error);
       throw error;
@@ -56,29 +46,13 @@ export class GeminiService {
 
   async chat(messages: Message[]): Promise<Message> {
     try {
-      console.log('Starting Gemini chat with', messages.length, 'messages');
-      
       if (messages.length === 1) {
         // 最初のメッセージの場合
         const prompt = this.createInitialPrompt(messages[0].content);
-        console.log('Sending initial prompt to Gemini:', prompt.substring(0, 100) + '...');
         
         const result = await this.model.generateContent(prompt);
         const response = await result.response;
-        
-        console.log('Gemini response received successfully');
-        console.log('Gemini response object:', response);
-        console.log('Gemini response candidates:', response.candidates);
-        
         const responseText = response.text();
-        console.log('Gemini response text:', responseText);
-        console.log('Gemini response text length:', responseText?.length);
-        
-        // フィニッシュリーズンをチェック
-        if (response.candidates && response.candidates[0]) {
-          console.log('Finish reason:', response.candidates[0].finishReason);
-          console.log('Safety ratings:', response.candidates[0].safetyRatings);
-        }
         
         return {
           id: Math.random().toString(36).substring(7),
@@ -89,25 +63,11 @@ export class GeminiService {
       } else {
         // 会話の継続の場合
         const chatHistory = this.convertToGeminiHistory(messages.slice(0, -1));
-        console.log('Converting chat history for Gemini:', chatHistory.length, 'messages');
         
         const chat = this.model.startChat({ history: chatHistory });
         const result = await chat.sendMessage(messages[messages.length - 1].content);
         const response = await result.response;
-        
-        console.log('Gemini chat response received successfully');
-        console.log('Gemini chat response object:', response);
-        console.log('Gemini chat response candidates:', response.candidates);
-        
         const responseText = response.text();
-        console.log('Gemini chat response text:', responseText);
-        console.log('Gemini chat response text length:', responseText?.length);
-        
-        // フィニッシュリーズンをチェック
-        if (response.candidates && response.candidates[0]) {
-          console.log('Finish reason:', response.candidates[0].finishReason);
-          console.log('Safety ratings:', response.candidates[0].safetyRatings);
-        }
         
         return {
           id: Math.random().toString(36).substring(7),
@@ -139,12 +99,8 @@ export class GeminiService {
   }
 
   async analyzeFeedback(messages: Message[]): Promise<any> {
-    console.log('Starting Gemini feedback analysis...');
-    
     try {
       const conversation = this.formatConversationForAnalysis(messages);
-      console.log('Formatted conversation length:', conversation.length);
-      console.log('Conversation preview:', conversation.substring(0, 200) + '...');
       
       const prompt = `
 以下はユーザーとAIアシスタントの会話です。この会話から、GitHub Issueを作成するための情報を抽出してください。
@@ -169,28 +125,20 @@ ${conversation}
 4. categoryとpriorityは会話内容から適切に判断してください
 `;
 
-      console.log('Sending analysis prompt to Gemini...');
       const result = await this.model.generateContent(prompt);
       const response = await result.response;
       const text = response.text();
-      
-      console.log('Gemini analysis response text:', text);
-      console.log('Response text length:', text?.length);
       
       // JSONレスポンスをパース
       try {
         const jsonMatch = text.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
-          console.log('Found JSON in response:', jsonMatch[0]);
           const parsed = JSON.parse(jsonMatch[0]);
-          console.log('Parsed analysis result:', parsed);
           return parsed;
         }
-        console.error('No JSON found in Gemini response');
         throw new Error('No JSON found in response');
       } catch (parseError) {
         console.error('Failed to parse Gemini response:', text);
-        console.error('Parse error:', parseError);
         throw new Error('Failed to parse AI response');
       }
     } catch (error) {

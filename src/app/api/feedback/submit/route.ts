@@ -49,11 +49,8 @@ export async function POST(request: NextRequest) {
     // API Key + ドメインセット認証
     const apiKeyValidation = validateApiKey(apiKey, originDomain);
     if (!apiKeyValidation.isValid) {
-      console.log('API key validation failed:', apiKeyValidation.error);
       return createErrorResponse(apiKeyValidation.error || 'Invalid API key', 401);
     }
-    
-    console.log('API key validated successfully:', apiKeyValidation.keyInfo?.description);
     
     // GitHub設定の取得（リポジトリはクライアント側で必須指定）
     const repository = githubRepo;

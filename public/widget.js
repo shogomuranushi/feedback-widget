@@ -241,14 +241,21 @@
       this._addLoadingMessage();
 
       try {
+        // タイムアウト付きfetch（20秒）
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 20000);
+        
         const response = await fetch(`${API_BASE}/api/feedback/chat`, {
           method: 'POST',
           headers: getHeaders(),
           body: JSON.stringify({
             session_id: this._session.id,
             message: content
-          })
+          }),
+          signal: controller.signal
         });
+        
+        clearTimeout(timeoutId);
 
         if (!response.ok) {
           const errorText = await response.text();
@@ -282,11 +289,20 @@
       } catch (error) {
         this._removeLoadingMessage();
         
+        let errorContent = '申し訳ございません。メッセージの送信中にエラーが発生しました。';
+        
+        // エラーの種類に応じてメッセージを変更
+        if (error.name === 'AbortError') {
+          errorContent = '応答に時間がかかっています。もう一度お試しください。';
+        } else if (error.message && error.message.includes('Failed to fetch')) {
+          errorContent = 'ネットワークエラーが発生しました。接続を確認してもう一度お試しください。';
+        }
+        
         // エラーメッセージを追加
         const errorMessage = {
           id: Math.random().toString(36).substring(2, 15),
           role: 'assistant',
-          content: '申し訳ございません。メッセージの送信中にエラーが発生しました。',
+          content: errorContent,
           timestamp: new Date()
         };
 

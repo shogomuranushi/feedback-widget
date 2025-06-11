@@ -23,7 +23,6 @@ export interface DomainApiKeyMapping {
  */
 function getDomainApiKeyMappings(): DomainApiKeyMapping {
   const mappingsEnv = process.env.DOMAIN_API_MAPPINGS;
-  console.log('Raw DOMAIN_API_MAPPINGS:', mappingsEnv); // デバッグログ追加
   
   if (!mappingsEnv) {
     console.warn('DOMAIN_API_MAPPINGS environment variable not set - domain validation disabled');
@@ -35,20 +34,17 @@ function getDomainApiKeyMappings(): DomainApiKeyMapping {
   try {
     // セミコロンでドメインエントリを分割
     const domainEntries = mappingsEnv.split(';');
-    console.log('Domain entries after split:', domainEntries); // デバッグログ追加
     
     for (const entry of domainEntries) {
       const [domain, keysStr] = entry.split(':');
-      console.log(`Processing entry - domain: "${domain}", keysStr: "${keysStr}"`); // デバッグログ追加
       
       if (domain && keysStr) {
         const keys = keysStr.split(',').map(key => key.trim()).filter(Boolean);
         mappings[domain.trim()] = keys;
-        console.log(`Added mapping: ${domain.trim()} -> [${keys.join(', ')}]`); // デバッグログ追加
       }
     }
     
-    console.log('Final domain-API key mappings:', JSON.stringify(mappings, null, 2)); // 詳細なデバッグログ
+    console.log('Domain-API key mappings loaded:', Object.keys(mappings));
     return mappings;
   } catch (error) {
     console.error('Failed to parse DOMAIN_API_MAPPINGS:', error);
@@ -108,11 +104,8 @@ export function validateApiKey(apiKey: string | null, domain?: string | null): A
   // 特別なキーワード "all" ですべてのドメインを許可
   if (domainMappings['all']) {
     console.log('Using "all" domain mapping - allowing all domains');
-    console.log('Available keys in "all" mapping:', domainMappings['all']); // デバッグログ追加
-    console.log('Looking for API key:', apiKey); // デバッグログ追加
     
     if (domainMappings['all'].includes(apiKey)) {
-      console.log('API key found in "all" mapping - authentication successful'); // デバッグログ追加
       return {
         isValid: true,
         keyInfo: {
@@ -121,8 +114,6 @@ export function validateApiKey(apiKey: string | null, domain?: string | null): A
           description: `Valid API key for all domains (debug mode)`
         }
       };
-    } else {
-      console.log('API key NOT found in "all" mapping - authentication failed'); // デバッグログ追加
     }
   }
   

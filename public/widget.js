@@ -369,7 +369,7 @@
         const firstUserMessage = this._session.messages.find(msg => msg.role === 'user')?.content || 'ユーザーからのフィードバック';
         const title = firstUserMessage.length > 50 ? firstUserMessage.substring(0, 47) + '...' : firstUserMessage;
         
-        await fetch(`${API_BASE}/api/feedback/submit`, {
+        const response = await fetch(`${API_BASE}/api/feedback/submit`, {
           method: 'POST',
           headers: getHeaders(),
           body: JSON.stringify({
@@ -383,8 +383,22 @@
           })
         });
         
+        if (response.ok) {
+          const result = await response.json();
+          // Issue作成成功メッセージを表示
+          const successMessage = {
+            id: Math.random().toString(36).substring(2, 15),
+            role: 'assistant',
+            content: `📋 GitHub Issueが作成されました！開発チームが確認し、対応いたします。\n\nIssue: #${result.issue_number}`,
+            timestamp: new Date()
+          };
+          
+          this._session.messages.push(successMessage);
+          this._updateMessagesDisplay();
+        }
+        
       } catch (error) {
-        // エラーは静かに無視
+        // エラーは静かに無視（ユーザー体験を損なわないため）
       }
     },
 

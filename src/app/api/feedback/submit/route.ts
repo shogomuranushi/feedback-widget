@@ -118,6 +118,7 @@ ${githubMention} 上記のフィードバックについて開発とPRの作成�
       issue_url: issueResponse.data.html_url,
       issue_number: issueResponse.data.number,
       title: issueResponse.data.title,
+      notify_enabled: process.env.GITHUB_NOTIFY === 'true',
     };
 
     return setCorsHeaders(NextResponse.json(issueData));

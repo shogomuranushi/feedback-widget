@@ -385,16 +385,18 @@
         
         if (response.ok) {
           const result = await response.json();
-          // Issue作成成功メッセージを表示
-          const successMessage = {
-            id: Math.random().toString(36).substring(2, 15),
-            role: 'assistant',
-            content: `📋 GitHub Issueが作成されました！開発チームが確認し、対応いたします。\n\nIssue: #${result.issue_number}`,
-            timestamp: new Date()
-          };
-          
-          this._session.messages.push(successMessage);
-          this._updateMessagesDisplay();
+          // GITHUB_NOTIFYがtrueの場合のみIssue作成成功メッセージを表示
+          if (result.notify_enabled) {
+            const successMessage = {
+              id: Math.random().toString(36).substring(2, 15),
+              role: 'assistant',
+              content: `📋 GitHub Issueが作成されました！開発チームが確認し、対応いたします。\n\nIssue: #${result.issue_number}`,
+              timestamp: new Date()
+            };
+            
+            this._session.messages.push(successMessage);
+            this._updateMessagesDisplay();
+          }
         }
         
       } catch (error) {

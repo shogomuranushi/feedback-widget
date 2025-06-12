@@ -93,6 +93,9 @@ GITHUB_MENTION=@claude
 
 # Domain-API Key Mapping (Required)
 DOMAIN_API_MAPPINGS=example.com:widget_prod_key1,widget_prod_key2;localhost:widget_dev_key;app.company.com:widget_company_prod
+
+# Optional: Show GitHub Issue creation notification in widget (default: false)
+GITHUB_NOTIFY=true
 EOF
 ```
 
@@ -516,9 +519,10 @@ docker compose up --build
 | Variable | Description | Required | Example |
 |----------|-------------|----------|---------|
 | `GEMINI_API_KEY` | Google Gemini AI API key | Yes | `AIza...` |
-| `GEMINI_MODEL` | Gemini model to use | No | `gemini-2.5-pro-preview-06-05` |
+| `GEMINI_MODEL` | Gemini model to use | No | `gemini-2.0-flash` |
 | `GITHUB_TOKEN` | GitHub personal access token | Yes | `ghp_...` |
 | `GITHUB_MENTION` | User/team to mention in issues | No | `@claude` |
+| `GITHUB_NOTIFY` | Show Issue creation notification in widget | No | `true` |
 | `DOMAIN_API_MAPPINGS` | Domain-API key mappings (required) | Yes | `example.com:widget_key1;localhost:widget_dev` |
 
 **Note:** GitHub repository is specified by clients via `data-github-repo` attribute, not server environment variables.

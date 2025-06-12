@@ -210,13 +210,18 @@
       return this._session.messages.map(message => `
         <div class="feedback-widget-message ${message.role}">
           <div class="feedback-widget-message-content">
-            ${message.content}
+            ${this._convertLinksToHtml(message.content)}
           </div>
           <div class="feedback-widget-message-time">
             ${this._formatTime(message.timestamp)}
           </div>
         </div>
       `).join('');
+    },
+
+    _convertLinksToHtml: function(text) {
+      // Markdownリンク [text](url) をHTMLリンクに変換
+      return text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
     },
 
     _sendMessage: async function() {
@@ -390,7 +395,7 @@
             const successMessage = {
               id: Math.random().toString(36).substring(2, 15),
               role: 'assistant',
-              content: `📋 GitHub Issueが作成されました！開発チームが確認し、対応いたします。\n\nIssue: #${result.issue_number}`,
+              content: `📋 GitHub Issueが作成されました！開発チームが確認し、対応いたします。\n\nIssue: [#${result.issue_number}](${result.issue_url})`,
               timestamp: new Date()
             };
             
@@ -527,6 +532,20 @@
         .feedback-widget-message.user .feedback-widget-message-content {
           background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
           color: white;
+        }
+        .feedback-widget-message-content a {
+          color: #3b82f6;
+          text-decoration: underline;
+          font-weight: 500;
+        }
+        .feedback-widget-message.user .feedback-widget-message-content a {
+          color: #ddd6fe;
+        }
+        .feedback-widget-message-content a:hover {
+          color: #1d4ed8;
+        }
+        .feedback-widget-message.user .feedback-widget-message-content a:hover {
+          color: #c4b5fd;
         }
         .feedback-widget-message-time {
           font-size: 12px;

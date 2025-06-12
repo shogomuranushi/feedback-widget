@@ -10,8 +10,9 @@ export async function POST() {
     }
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const modelName = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
     const model = genAI.getGenerativeModel({ 
-      model: 'gemini-1.5-flash',
+      model: modelName,
       generationConfig: {
         temperature: 0.7,
         maxOutputTokens: 256,
@@ -28,7 +29,7 @@ export async function POST() {
     return NextResponse.json({
       message: 'Gemini APIに正常に接続できました',
       test_response: text.substring(0, 100), // レスポンスの最初の100文字のみ表示
-      model: 'gemini-pro',
+      model: modelName,
       success: true,
     });
 

@@ -28,7 +28,7 @@ export class ConfigService {
   static getGeminiConfig() {
     const config = {
       apiKey: this.getRequiredEnv('GEMINI_API_KEY'),
-      model: this.getOptionalEnv('GEMINI_MODEL', 'gemini-1.5-flash'),
+      model: this.getOptionalEnv('GEMINI_MODEL', 'gemini-2.0-flash'),
       timeout: parseInt(this.getOptionalEnv('GEMINI_TIMEOUT', '60000')),
     };
     

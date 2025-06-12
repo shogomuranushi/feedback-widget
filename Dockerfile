@@ -33,7 +33,10 @@ RUN mkdir .next
 RUN chown nextjs:nodejs .next
 
 # Automatically leverage output traces to reduce image size
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone/server.js ./server.js
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone/package.json ./package.json
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone/node_modules ./node_modules
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone/.next ./.next
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 USER nextjs

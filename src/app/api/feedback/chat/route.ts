@@ -30,7 +30,7 @@ export async function OPTIONS(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { session_id, message } = await request.json();
+    const { session_id, message, images } = await request.json();
     
     // ヘッダーからAPI Key、GitHubリポジトリ、ドメインを取得
     const apiKey = request.headers.get('X-API-Key');
@@ -46,9 +46,17 @@ export async function POST(request: NextRequest) {
       ));
     }
 
-    if (!session_id || !message) {
+    // session_idは必須、messageまたは画像のいずれかが必要
+    if (!session_id) {
       return setCorsHeaders(NextResponse.json(
-        { error: 'session_id and message are required' },
+        { error: 'session_id is required' },
+        { status: 400 }
+      ));
+    }
+
+    if (!message && (!images || images.length === 0)) {
+      return setCorsHeaders(NextResponse.json(
+        { error: 'message or images are required' },
         { status: 400 }
       ));
     }
@@ -60,12 +68,15 @@ export async function POST(request: NextRequest) {
       ));
     }
 
-    const messageValidation = validateMessageContent(message);
-    if (!messageValidation.isValid) {
-      return setCorsHeaders(NextResponse.json(
-        { error: messageValidation.error }, 
-        { status: 400 }
-      ));
+    // メッセージがある場合のみバリデーション
+    if (message) {
+      const messageValidation = validateMessageContent(message);
+      if (!messageValidation.isValid) {
+        return setCorsHeaders(NextResponse.json(
+          { error: messageValidation.error }, 
+          { status: 400 }
+        ));
+      }
     }
 
     const geminiApiKey = process.env.GEMINI_API_KEY;
@@ -81,19 +92,21 @@ export async function POST(request: NextRequest) {
     }
     const sessionHistory = sessions.get(session_id)!;
 
-    const sanitizedMessage = sanitizeInput(message, 2000);
+    const sanitizedMessage = message ? sanitizeInput(message, 2000) : '';
     const userMessage: Message = {
       id: Math.random().toString(36).substring(7),
       role: 'user',
       content: sanitizedMessage,
-      timestamp: new Date()
+      timestamp: new Date(),
+      ...(images && images.length > 0 && { images })
     };
     sessionHistory.push(userMessage);
 
     const aiService = new AIResponseService();
     const aiResponse = await aiService.generateFeedbackResponse(
       sessionHistory.slice(0, -1),
-      sanitizedMessage
+      sanitizedMessage,
+      images
     );
     sessionHistory.push(aiResponse);
 

@@ -44,11 +44,63 @@ export class GeminiService {
     }
   }
 
-  async chat(messages: Message[]): Promise<Message> {
+  async chat(
+    messages: Message[], 
+    customPrompt?: string,
+    images?: Array<{ data: string; mimeType: string }>
+  ): Promise<Message> {
     try {
+      // 画像が含まれている場合はマルチモーダルリクエストを作成
+      if (images && images.length > 0) {
+        const lastMessage = messages[messages.length - 1];
+        const prompt = customPrompt || this.createInitialPrompt(lastMessage.content);
+        
+        // マルチモーダルリクエストの構築
+        const parts = [];
+        
+        // テキスト部分を追加
+        if (lastMessage.content) {
+          parts.push({ text: prompt });
+        }
+        
+        // 画像部分を追加
+        for (const image of images) {
+          parts.push({
+            inlineData: {
+              data: image.data,
+              mimeType: image.mimeType
+            }
+          });
+        }
+        
+        // 画像が含まれている場合は画像解釈プロンプトを調整
+        if (!lastMessage.content) {
+          // 画像のみの場合
+          parts.unshift({ 
+            text: prompt + "\n\n添付された画像を詳しく分析して、何についてのフィードバックなのか理解してください。画像の内容を具体的に説明し、「なぜその機能を実装したいと思われたのですか？」という質問で背景を聞いてください。"
+          });
+        } else {
+          // テキスト+画像の場合、画像も考慮した背景質問
+          parts[0] = { 
+            text: prompt + "\n\n添付された画像も参考にして、フィードバックの内容を理解してください。画像の内容を簡潔に言及した上で、「なぜその機能を実装したいと思われたのですか？」という質問で背景を聞いてください。"
+          };
+        }
+        
+        const result = await this.model.generateContent(parts);
+        const response = await result.response;
+        const responseText = response.text();
+        
+        return {
+          id: Math.random().toString(36).substring(7),
+          role: 'assistant',
+          content: responseText,
+          timestamp: new Date()
+        };
+      }
+
       if (messages.length === 1) {
-        // 最初のメッセージの場合
-        const prompt = this.createInitialPrompt(messages[0].content);
+        // 最初のメッセージの場合（画像なし）
+        const prompt = customPrompt || this.createInitialPrompt(messages[0].content);
         
         const result = await this.model.generateContent(prompt);
         const response = await result.response;
@@ -61,11 +113,14 @@ export class GeminiService {
           timestamp: new Date()
         };
       } else {
-        // 会話の継続の場合
+        // 会話の継続の場合（画像なし）
         const chatHistory = this.convertToGeminiHistory(messages.slice(0, -1));
         
         const chat = this.model.startChat({ history: chatHistory });
-        const result = await chat.sendMessage(messages[messages.length - 1].content);
+        const lastMessage = messages[messages.length - 1];
+        const messageContent = customPrompt || lastMessage.content;
+        
+        const result = await chat.sendMessage(messageContent);
         const response = await result.response;
         const responseText = response.text();
         

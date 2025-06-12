@@ -106,6 +106,9 @@
           timestamp: new Date()
         }]
       };
+      
+      // 画像関連の状態をリセット
+      this._selectedImages = [];
     },
 
     _createFloatingButton: function() {
@@ -167,12 +170,33 @@
           ${this._renderMessages()}
         </div>
         <div class="feedback-widget-input-container">
-          <textarea 
-            id="feedback-widget-input" 
-            class="feedback-widget-input" 
-            placeholder="メッセージを入力..."
-            rows="1"
-          ></textarea>
+          <div class="feedback-widget-input-wrapper">
+            <textarea 
+              id="feedback-widget-input" 
+              class="feedback-widget-input" 
+              placeholder="メッセージを入力..."
+              rows="1"
+            ></textarea>
+            <div id="feedback-widget-image-preview" class="feedback-widget-image-preview"></div>
+          </div>
+          <input 
+            type="file" 
+            id="feedback-widget-file-input" 
+            class="feedback-widget-file-input"
+            accept="image/*"
+            multiple
+            onchange="window.FeedbackWidget._handleFileSelect(event)"
+          />
+          <button 
+            id="feedback-widget-image-button" 
+            class="feedback-widget-image-button"
+            onclick="window.FeedbackWidget._openFileDialog()"
+            title="画像を添付"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19 7v2.99s-1.99.01-2 0V7h-3s.01-1.99 0-2h3V2h2v3h3v2h-3zm-3 4V8h-3V5H5c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-8h-3zM5 19l3-4 2 3 3-4 4 5H5z"/>
+            </svg>
+          </button>
           <button 
             id="feedback-widget-send" 
             class="feedback-widget-send-button"
@@ -197,6 +221,9 @@
           }
         });
       }
+
+      // ドラッグ&ドロップ機能を設定
+      this._setupDragAndDrop();
     },
 
     _destroyModal: function() {
@@ -211,6 +238,7 @@
         <div class="feedback-widget-message ${message.role}">
           <div class="feedback-widget-message-content">
             ${this._convertLinksToHtml(message.content)}
+            ${message.images && message.images.length > 0 ? this._renderMessageImages(message.images) : ''}
           </div>
           <div class="feedback-widget-message-time">
             ${this._formatTime(message.timestamp)}
@@ -222,6 +250,41 @@
     _convertLinksToHtml: function(text) {
       // Markdownリンク [text](url) をHTMLリンクに変換
       return text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+    },
+
+    _renderMessageImages: function(images) {
+      if (!images || images.length === 0) return '';
+      
+      return `
+        <div class="feedback-widget-message-images">
+          ${images.map(image => `
+            <div class="feedback-widget-message-image-item">
+              <img src="${image.dataURL}" alt="添付画像" class="feedback-widget-message-image" onclick="window.FeedbackWidget._openImageModal('${image.dataURL}')" />
+            </div>
+          `).join('')}
+        </div>
+      `;
+    },
+
+    _openImageModal: function(imageUrl) {
+      // 既存の画像モーダルがあれば削除
+      const existingModal = document.getElementById('feedback-widget-image-modal');
+      if (existingModal) existingModal.remove();
+
+      // 画像モーダルを作成
+      const imageModal = document.createElement('div');
+      imageModal.id = 'feedback-widget-image-modal';
+      imageModal.className = 'feedback-widget-image-modal';
+      imageModal.innerHTML = `
+        <div class="feedback-widget-image-modal-overlay" onclick="this.parentElement.remove()">
+          <div class="feedback-widget-image-modal-content" onclick="event.stopPropagation()">
+            <img src="${imageUrl}" alt="拡大画像" class="feedback-widget-image-modal-img" />
+            <button class="feedback-widget-image-modal-close" onclick="this.parentElement.parentElement.remove()">×</button>
+          </div>
+        </div>
+      `;
+
+      document.body.appendChild(imageModal);
     },
 
     _showIssueCreatedNotification: function(issueNumber, issueUrl) {
@@ -265,21 +328,33 @@
 
     _sendMessage: async function() {
       const input = document.getElementById('feedback-widget-input');
-      if (!input || !input.value.trim()) return;
+      const hasText = input && input.value.trim();
+      const hasImages = this._selectedImages && this._selectedImages.length > 0;
+      
+      // テキストまたは画像のいずれかが必要
+      if (!hasText && !hasImages) return;
 
-      const content = input.value.trim();
-      input.value = '';
+      const content = hasText ? input.value.trim() : '';
+      if (input) input.value = '';
 
-      // ユーザーメッセージを追加
+      // 画像データを準備
+      const images = this._selectedImages ? [...this._selectedImages] : [];
+      
+      // ユーザーメッセージを追加（画像情報も含める）
       const userMessage = {
         id: Math.random().toString(36).substring(2, 15),
         role: 'user',
         content: content,
+        images: images,
         timestamp: new Date()
       };
 
       this._session.messages.push(userMessage);
       this._updateMessagesDisplay();
+
+      // 送信後に画像をクリア
+      this._selectedImages = [];
+      this._updateImagePreview();
 
       // ユーザーメッセージの数をチェック
       const userMessageCount = this._session.messages.filter(msg => msg.role === 'user').length;
@@ -320,12 +395,22 @@
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 20000);
         
+        // 画像をBase64に変換してリクエストに含める
+        const imageData = [];
+        for (const image of images) {
+          imageData.push({
+            data: image.dataURL.split(',')[1], // Base64部分のみ
+            mimeType: image.file.type
+          });
+        }
+
         const response = await fetch(`${API_BASE}/api/feedback/chat`, {
           method: 'POST',
           headers: getHeaders(),
           body: JSON.stringify({
             session_id: this._session.id,
-            message: content
+            message: content,
+            images: imageData
           }),
           signal: controller.signal
         });
@@ -422,6 +507,127 @@
       return new Date(date).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
     },
 
+    // 画像関連メソッド
+    _openFileDialog: function() {
+      const fileInput = document.getElementById('feedback-widget-file-input');
+      if (fileInput) {
+        fileInput.click();
+      }
+    },
+
+    _handleFileSelect: function(event) {
+      const files = event.target.files;
+      this._processFiles(files);
+    },
+
+    _processFiles: function(files) {
+      if (!files || files.length === 0) return;
+
+      Array.from(files).forEach(file => {
+        if (this._validateImageFile(file)) {
+          this._addImageToPreview(file);
+        }
+      });
+    },
+
+    _validateImageFile: function(file) {
+      // ファイル形式チェック
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+      if (!allowedTypes.includes(file.type)) {
+        alert('サポートされている画像形式: JPEG, PNG, WebP, GIF');
+        return false;
+      }
+
+      // ファイルサイズチェック (4MB制限)
+      const maxSize = 4 * 1024 * 1024; // 4MB
+      if (file.size > maxSize) {
+        alert('画像サイズは4MB以下にしてください');
+        return false;
+      }
+
+      return true;
+    },
+
+    _addImageToPreview: function(file) {
+      // 既に5枚以上選択されている場合は制限
+      if (this._selectedImages.length >= 5) {
+        alert('画像は最大5枚まで添付できます');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const imageData = {
+          file: file,
+          dataURL: e.target.result,
+          id: Math.random().toString(36).substring(2, 15)
+        };
+
+        this._selectedImages.push(imageData);
+        this._updateImagePreview();
+      };
+      reader.readAsDataURL(file);
+    },
+
+    _updateImagePreview: function() {
+      const previewContainer = document.getElementById('feedback-widget-image-preview');
+      if (!previewContainer) return;
+
+      previewContainer.innerHTML = this._selectedImages.map(image => `
+        <div class="feedback-widget-image-item" data-id="${image.id}">
+          <img src="${image.dataURL}" alt="プレビュー" class="feedback-widget-image-thumbnail" />
+          <button class="feedback-widget-image-remove" onclick="window.FeedbackWidget._removeImage('${image.id}')" title="削除">×</button>
+        </div>
+      `).join('');
+
+      // プレビューの表示/非表示
+      previewContainer.style.display = this._selectedImages.length > 0 ? 'flex' : 'none';
+    },
+
+    _removeImage: function(imageId) {
+      this._selectedImages = this._selectedImages.filter(img => img.id !== imageId);
+      this._updateImagePreview();
+    },
+
+    _setupDragAndDrop: function() {
+      const inputWrapper = document.querySelector('.feedback-widget-input-wrapper');
+      if (!inputWrapper) return;
+
+      // ドラッグイベントのハンドリング
+      ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        inputWrapper.addEventListener(eventName, this._preventDefaults, false);
+      });
+
+      ['dragenter', 'dragover'].forEach(eventName => {
+        inputWrapper.addEventListener(eventName, () => this._highlight(inputWrapper), false);
+      });
+
+      ['dragleave', 'drop'].forEach(eventName => {
+        inputWrapper.addEventListener(eventName, () => this._unhighlight(inputWrapper), false);
+      });
+
+      inputWrapper.addEventListener('drop', (e) => this._handleDrop(e), false);
+    },
+
+    _preventDefaults: function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+    },
+
+    _highlight: function(element) {
+      element.classList.add('feedback-widget-drag-highlight');
+    },
+
+    _unhighlight: function(element) {
+      element.classList.remove('feedback-widget-drag-highlight');
+    },
+
+    _handleDrop: function(e) {
+      const dt = e.dataTransfer;
+      const files = dt.files;
+      this._processFiles(files);
+    },
+
     _disableInputAndShowNewFeedbackButton: function() {
       const inputContainer = document.querySelector('.feedback-widget-input-container');
       if (!inputContainer) return;
@@ -479,6 +685,8 @@
     _createGitHubIssue: async function() {
       if (!this._session) return;
       
+      console.log('GitHub Issue作成開始:', this._session.id);
+      
       try {
         const conversationHistory = this._session.messages
           .map(msg => `**${msg.role === 'user' ? 'ユーザー' : 'アシスタント'}** (${this._formatTime(msg.timestamp)})\n${msg.content}`)
@@ -486,6 +694,12 @@
         
         const firstUserMessage = this._session.messages.find(msg => msg.role === 'user')?.content || 'ユーザーからのフィードバック';
         const title = firstUserMessage.length > 50 ? firstUserMessage.substring(0, 47) + '...' : firstUserMessage;
+        
+        console.log('Issue作成リクエストデータ:', {
+          session_id: this._session.id,
+          title: title,
+          firstUserMessage: firstUserMessage
+        });
         
         const response = await fetch(`${API_BASE}/api/feedback/submit`, {
           method: 'POST',
@@ -501,15 +715,22 @@
           })
         });
         
+        console.log('Issue作成APIレスポンス:', response.status, response.statusText);
+        
         if (response.ok) {
           const result = await response.json();
+          console.log('Issue作成成功:', result);
           // GITHUB_NOTIFYがtrueの場合のみIssue作成成功通知を表示
           if (result.notify_enabled) {
             this._showIssueCreatedNotification(result.issue_number, result.issue_url);
           }
+        } else {
+          const errorText = await response.text();
+          console.error('Issue作成失敗:', response.status, errorText);
         }
         
       } catch (error) {
+        console.error('Issue作成エラー:', error);
         // エラーは静かに無視（ユーザー体験を損なわないため）
       }
     },
@@ -724,10 +945,10 @@
           padding: 0 8px;
         }
         .feedback-widget-input-container {
-          padding: 16px;
+          padding: 12px 16px;
           border-top: 1px solid #e2e8f0;
           display: flex;
-          gap: 12px;
+          gap: 8px;
           align-items: flex-end;
           flex-shrink: 0;
         }
@@ -747,8 +968,8 @@
           border-color: #6366f1;
         }
         .feedback-widget-send-button {
-          width: 44px;
-          height: 44px;
+          width: 40px;
+          height: 40px;
           background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
           border: none;
           border-radius: 50%;
@@ -823,12 +1044,186 @@
           transform: translateY(0);
           box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
         }
+        
+        /* 画像機能用スタイル */
+        .feedback-widget-input-wrapper {
+          flex: 1;
+          position: relative;
+          border: 2px dashed transparent;
+          border-radius: 12px;
+          transition: all 0.2s ease;
+        }
+        
+        .feedback-widget-input-wrapper.feedback-widget-drag-highlight {
+          border-color: #6366f1;
+          background-color: rgba(99, 102, 241, 0.05);
+        }
+        
+        .feedback-widget-file-input {
+          display: none;
+        }
+        
+        .feedback-widget-image-button {
+          width: 40px;
+          height: 40px;
+          background: #f1f5f9;
+          border: 1px solid #d1d5db;
+          border-radius: 50%;
+          color: #6b7280;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s ease;
+          flex-shrink: 0;
+        }
+        
+        .feedback-widget-image-button:hover {
+          background: #e2e8f0;
+          color: #374151;
+          border-color: #9ca3af;
+        }
+        
+        .feedback-widget-image-preview {
+          display: none;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin-top: 8px;
+          padding: 8px 0;
+        }
+        
+        .feedback-widget-image-item {
+          position: relative;
+          display: inline-block;
+          border-radius: 8px;
+          overflow: hidden;
+          border: 1px solid #e2e8f0;
+        }
+        
+        .feedback-widget-image-thumbnail {
+          width: 60px;
+          height: 60px;
+          object-fit: cover;
+          display: block;
+        }
+        
+        .feedback-widget-image-remove {
+          position: absolute;
+          top: -6px;
+          right: -6px;
+          width: 20px;
+          height: 20px;
+          background: #ef4444;
+          color: white;
+          border: none;
+          border-radius: 50%;
+          cursor: pointer;
+          font-size: 12px;
+          line-height: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          transition: all 0.2s ease;
+        }
+        
+        .feedback-widget-image-remove:hover {
+          background: #dc2626;
+          transform: scale(1.1);
+        }
+        
+        /* メッセージ内画像表示用スタイル */
+        .feedback-widget-message-images {
+          margin-top: 8px;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+        
+        .feedback-widget-message-image-item {
+          border-radius: 8px;
+          overflow: hidden;
+          border: 1px solid rgba(0, 0, 0, 0.1);
+        }
+        
+        .feedback-widget-message-image {
+          max-width: 150px;
+          max-height: 150px;
+          object-fit: cover;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          display: block;
+        }
+        
+        .feedback-widget-message-image:hover {
+          opacity: 0.8;
+          transform: scale(1.02);
+        }
+        
+        /* 画像拡大モーダル用スタイル */
+        .feedback-widget-image-modal {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100vw;
+          height: 100vh;
+          z-index: 9999999;
+        }
+        
+        .feedback-widget-image-modal-overlay {
+          width: 100%;
+          height: 100%;
+          background: rgba(0, 0, 0, 0.8);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+        }
+        
+        .feedback-widget-image-modal-content {
+          position: relative;
+          max-width: 90vw;
+          max-height: 90vh;
+          cursor: auto;
+        }
+        
+        .feedback-widget-image-modal-img {
+          max-width: 100%;
+          max-height: 100%;
+          object-fit: contain;
+          border-radius: 8px;
+        }
+        
+        .feedback-widget-image-modal-close {
+          position: absolute;
+          top: -10px;
+          right: -10px;
+          width: 32px;
+          height: 32px;
+          background: #ef4444;
+          color: white;
+          border: none;
+          border-radius: 50%;
+          cursor: pointer;
+          font-size: 18px;
+          line-height: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+          transition: all 0.2s ease;
+        }
+        
+        .feedback-widget-image-modal-close:hover {
+          background: #dc2626;
+          transform: scale(1.1);
+        }
       `;
       document.head.appendChild(style);
     },
 
     destroy: function() {
-      ['feedback-widget-button', 'feedback-widget-modal', 'feedback-widget-styles', 'feedback-widget-issue-notification']
+      ['feedback-widget-button', 'feedback-widget-modal', 'feedback-widget-styles', 'feedback-widget-issue-notification', 'feedback-widget-image-modal']
         .forEach(id => document.getElementById(id)?.remove());
       
       this._initialized = false;

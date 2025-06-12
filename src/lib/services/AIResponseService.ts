@@ -14,7 +14,8 @@ export class AIResponseService {
    */
   async generateFeedbackResponse(
     messages: Message[], 
-    newMessage: string
+    newMessage: string,
+    images?: Array<{ data: string; mimeType: string }>
   ): Promise<Message> {
     try {
       // 会話フローに基づいてプロンプトを決定
@@ -37,10 +38,11 @@ export class AIResponseService {
         id: Math.random().toString(36).substring(7),
         role: 'user' as const,
         content: newMessage,
-        timestamp: new Date()
+        timestamp: new Date(),
+        ...(images && images.length > 0 && { images })
       }];
 
-      const response = await this.geminiService.chat(allMessages);
+      const response = await this.geminiService.chat(allMessages, prompt, images);
       return response;
 
     } catch (error) {

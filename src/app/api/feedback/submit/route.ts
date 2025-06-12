@@ -3,6 +3,12 @@ import { Octokit } from '@octokit/rest';
 import { i18nService } from '../../../../lib/i18n';
 import { isValidSessionId, validateFeedbackData, sanitizeInput } from '../../../../lib/utils/security';
 import { validateApiKey } from '../../../../lib/utils/apiKeyAuth';
+import { Message } from '../../../../lib/types';
+
+// セッション管理用の簡易インメモリストレージ（グローバル共有）
+declare global {
+  var feedbackSessions: Map<string, Message[]>;
+}
 
 const setCorsHeaders = (response: NextResponse) => {
   response.headers.set('Access-Control-Allow-Origin', '*');
@@ -20,6 +26,7 @@ export async function OPTIONS(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const requestData = await request.json();
+    console.log('Issue作成リクエスト受信:', { session_id: requestData.session_id });
     
     // ウィジェットからの直接リクエストとfeedback_dataラップのリクエストをサポート
     const session_id = requestData.session_id;
@@ -72,6 +79,33 @@ export async function POST(request: NextRequest) {
     
     const octokit = new Octokit({ auth: githubToken });
 
+    // セッションストアから実際の会話履歴を取得（画像データを含む）
+    const sessions = global.feedbackSessions || new Map();
+    const sessionHistory = sessions.get(session_id) || [];
+    
+    // 会話履歴から画像を抽出（実際の画像データも保持）
+    const attachedImages: Array<{ mimeType: string; data: string }> = [];
+    const imageDescriptions: string[] = [];
+    let conversationText = '';
+    
+    sessionHistory.forEach((message, index) => {
+      const speaker = message.role === 'user' ? 'ユーザー' : 'アシスタント';
+      const timestamp = new Date(message.timestamp).toLocaleString('ja-JP');
+      conversationText += `**${speaker}** (${timestamp})\n${message.content}\n\n`;
+      
+      // 画像がある場合は画像データと情報を保存
+      if (message.images && message.images.length > 0) {
+        message.images.forEach((image, imgIndex) => {
+          const imageNumber = attachedImages.length + 1;
+          attachedImages.push({
+            mimeType: image.mimeType,
+            data: image.data
+          });
+          imageDescriptions.push(`画像${imageNumber}: ${image.mimeType} (サイズ: ${Math.round(image.data.length * 0.75 / 1024)}KB)`);
+          conversationText += `[添付画像${imageNumber}: ${image.mimeType}]\n\n`;
+        });
+      }
+    });
     
     const issueBody = `## 概要
 
@@ -83,13 +117,18 @@ ${feedback_data.category || 'feature'}
 ## 優先度
 ${feedback_data.priority || 'medium'}
 
+## 添付画像
+
+${imageDescriptions.length > 0 ? imageDescriptions.join('\n') : '添付画像はありません。'}
+
+
 ## 会話履歴
 
 <details>
 <summary>詳細な会話内容</summary>
 
 \`\`\`
-${feedback_data.conversation_history || 'No conversation history available'}
+${conversationText || feedback_data.conversation_history || 'No conversation history available'}
 \`\`\`
 
 </details>
@@ -106,6 +145,8 @@ ${githubMention} 上記のフィードバックについて開発とPRの作成�
       .map((label: string) => sanitizeInput(label, 50))
       .filter(Boolean);
 
+    console.log('GitHub Issue作成開始:', { owner, repo, title: sanitizedTitle });
+
     const issueResponse = await octokit.rest.issues.create({
       owner,
       repo,
@@ -113,6 +154,13 @@ ${githubMention} 上記のフィードバックについて開発とPRの作成�
       body: issueBody,
       labels: sanitizedLabels,
     });
+
+    console.log('GitHub Issue作成成功:', issueResponse.data.number, issueResponse.data.html_url);
+
+    // 画像がある場合は、画像情報をIssue本文に含める
+    if (attachedImages.length > 0) {
+      console.log(`${attachedImages.length}枚の画像情報を記録`);
+    }
 
     const issueData = {
       issue_url: issueResponse.data.html_url,
@@ -124,6 +172,8 @@ ${githubMention} 上記のフィードバックについて開発とPRの作成�
     return setCorsHeaders(NextResponse.json(issueData));
 
   } catch (error) {
+    console.error('Issue作成エラー:', error);
+    
     const errorMessage = error && typeof error === 'object' && 'message' in error
       ? (error as any).message || 'Unknown GitHub error'
       : 'Failed to create GitHub issue';

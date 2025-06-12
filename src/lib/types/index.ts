@@ -17,6 +17,7 @@ export interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
+  images?: Array<{ data: string; mimeType: string; dataURL?: string; file?: any }>;
 }
 
 export interface FeedbackSession {

@@ -2,7 +2,9 @@ version: '3.8'
 
 services:
   feedback-widget:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
     ports:
       - "3001:3001"
     volumes:

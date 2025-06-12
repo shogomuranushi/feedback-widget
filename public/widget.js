@@ -281,6 +281,37 @@
       this._session.messages.push(userMessage);
       this._updateMessagesDisplay();
 
+      // ユーザーメッセージの数をチェック
+      const userMessageCount = this._session.messages.filter(msg => msg.role === 'user').length;
+
+      // 2回目のユーザーメッセージの場合、固定レスポンスを返す
+      if (userMessageCount === 2) {
+        // ローディング表示（短時間）
+        this._addLoadingMessage();
+        
+        // 少し待ってからレスポンスを表示（自然な感じにするため）
+        setTimeout(() => {
+          this._removeLoadingMessage();
+          
+          // 固定レスポンスを追加
+          const assistantMessage = {
+            id: Math.random().toString(36).substring(2, 15),
+            role: 'assistant',
+            content: 'ありがとうございました😊 エンジニアチームにフィードバックしました📝',
+            timestamp: new Date()
+          };
+
+          this._session.messages.push(assistantMessage);
+          this._updateMessagesDisplay();
+
+          // GitHub Issue自動作成チェック
+          this._checkAndCreateGitHubIssue();
+        }, 800);
+        
+        return;
+      }
+
+      // 1回目のユーザーメッセージの場合、Gemini APIを呼び出す
       // ローディング表示
       this._addLoadingMessage();
 
@@ -391,6 +422,47 @@
       return new Date(date).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
     },
 
+    _disableInputAndShowNewFeedbackButton: function() {
+      const inputContainer = document.querySelector('.feedback-widget-input-container');
+      if (!inputContainer) return;
+
+      // 入力コンテナを新しいフィードバックボタンに置き換え
+      inputContainer.innerHTML = `
+        <div class="feedback-widget-new-session-container">
+          <p class="feedback-widget-session-complete">フィードバックありがとうございました！</p>
+          <button 
+            id="feedback-widget-new-session" 
+            class="feedback-widget-new-session-button"
+            onclick="window.FeedbackWidget._startNewSession()"
+          >
+            新しいフィードバックを投稿する
+          </button>
+        </div>
+      `;
+    },
+
+    _startNewSession: function() {
+      // セッションをリセット
+      this._session = null;
+      this._issueCreated = false;
+      
+      // すべての通知を削除
+      document.querySelectorAll('.feedback-widget-notification').forEach(el => el.remove());
+      
+      // セッションを再初期化
+      this._initializeSession();
+      
+      // モーダルを一度閉じて再度開く（確実にクリアするため）
+      this._destroyModal();
+      this._isOpen = false;
+      
+      // 少し待ってから再度開く
+      setTimeout(() => {
+        this._openModal();
+      }, 100);
+    },
+
+
     _checkAndCreateGitHubIssue: function() {
       if (!this._session || this._issueCreated) return;
       
@@ -399,6 +471,8 @@
       if (userMessageCount === 2) {
         this._issueCreated = true;
         this._createGitHubIssue();
+        // 入力を無効化し、新しいフィードバックボタンを表示
+        this._disableInputAndShowNewFeedbackButton();
       }
     },
 
@@ -713,6 +787,41 @@
             opacity: 1;
             transform: scale(1);
           }
+        }
+        .feedback-widget-new-session-container {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 16px;
+          padding: 20px;
+          text-align: center;
+        }
+        .feedback-widget-session-complete {
+          color: #059669;
+          font-weight: 500;
+          margin: 0;
+          font-size: 14px;
+        }
+        .feedback-widget-new-session-button {
+          background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+          color: white;
+          border: none;
+          border-radius: 8px;
+          padding: 12px 20px;
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
+        }
+        .feedback-widget-new-session-button:hover {
+          background: linear-gradient(135deg, #059669 0%, #047857 100%);
+          box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);
+          transform: translateY(-1px);
+        }
+        .feedback-widget-new-session-button:active {
+          transform: translateY(0);
+          box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
         }
       `;
       document.head.appendChild(style);

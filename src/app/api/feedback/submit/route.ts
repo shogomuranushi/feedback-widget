@@ -13,7 +13,7 @@ declare global {
 const setCorsHeaders = (response: NextResponse) => {
   response.headers.set('Access-Control-Allow-Origin', '*');
   response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-API-Key, X-GitHub-Repo, X-Origin-Domain');
+  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-API-Key, X-GitHub-Repo, X-Origin-Domain, X-User-ID, X-User-Email, X-User-Name');
   return response;
 };
 
@@ -48,10 +48,13 @@ export async function POST(request: NextRequest) {
       return createErrorResponse(feedbackValidation.error || 'Invalid feedback data', 400);
     }
 
-    // ヘッダーからAPI Key、GitHubリポジトリ、ドメインを取得
+    // ヘッダーからAPI Key、GitHubリポジトリ、ドメイン、ユーザー情報を取得
     const apiKey = request.headers.get('X-API-Key');
     const githubRepo = request.headers.get('X-GitHub-Repo');
     const originDomain = request.headers.get('X-Origin-Domain');
+    const userId = request.headers.get('X-User-ID');
+    const userEmail = request.headers.get('X-User-Email');
+    const userName = request.headers.get('X-User-Name');
     
     // API Key + ドメインセット認証
     const apiKeyValidation = validateApiKey(apiKey, originDomain);
@@ -107,6 +110,18 @@ export async function POST(request: NextRequest) {
       }
     });
     
+    // ユーザー情報セクションを準備
+    let userInfoSection = '';
+    if (userId || userEmail || userName) {
+      userInfoSection = `## ユーザー情報
+
+${userId ? `**User ID**: ${userId}` : ''}
+${userEmail ? `**Email**: ${userEmail}` : ''}
+${userName ? `**Name**: ${userName}` : ''}
+
+`;
+    }
+
     const issueBody = `## 概要
 
 ${feedback_data.description || 'ユーザーからのフィードバックです。'}
@@ -117,7 +132,7 @@ ${feedback_data.category || 'feature'}
 ## 優先度
 ${feedback_data.priority || 'medium'}
 
-## 添付画像
+${userInfoSection}## 添付画像
 
 ${imageDescriptions.length > 0 ? imageDescriptions.join('\n') : '添付画像はありません。'}
 

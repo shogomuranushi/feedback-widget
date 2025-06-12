@@ -13,12 +13,15 @@ An intelligent feedback collection system that transforms user conversations int
 
 ## ✨ Features
 
-- 🤖 **AI-Driven Conversations** - Natural language feedback collection powered by Gemini AI
+- 🤖 **AI-Driven Conversations** - Natural language feedback collection powered by Gemini AI with image analysis support
 - 📋 **Auto-Issue Creation** - Automatically generates GitHub Issues after the second user message
 - 🎨 **Embeddable SDK** - Easy integration into any website with a single script tag
 - 🔧 **AI Coding Agent Integration** - Issues are automatically tagged with @claude mentions for seamless handoff to AI coding agents like Claude Code
 - ⚡ **Zero-to-Code Pipeline** - From user feedback to automated development in seconds
 - 🔗 **Auto-Detect API Endpoint** - Widget automatically detects API endpoint from script source
+- 👤 **Smart User Identification** - Automatic user name collection with localStorage persistence
+- 📷 **Image Upload Support** - Drag & drop image attachments with AI-powered image analysis
+- 💾 **Persistent User Settings** - User preferences saved across sessions
 
 > **🚀 Complete Automation**: Once a GitHub Issue is created, AI coding agents like [Claude Code](https://claude.ai/code) can automatically analyze the requirements, implement features, write tests, and submit pull requests - creating a fully automated development pipeline from user feedback to deployed code.
 
@@ -31,13 +34,22 @@ An intelligent feedback collection system that transforms user conversations int
 #### 1. Click the Feedback Button
 Click the blue feedback button in the bottom-right corner of the screen to open the feedback interface.
 
-#### 2. Chat with AI
+#### 2. Set Your User Name (First Time Only)
+- On your first visit, you'll be prompted to enter your name
+- This name will be associated with your feedback in GitHub Issues
+- Your name is saved locally and you won't need to enter it again
+- You can edit your name anytime by clicking the edit button next to your name
+
+#### 3. Chat with AI
 - The AI assistant will engage in natural conversation to understand your needs
 - Simply describe what you want: "I need an export feature" or "The save button isn't working"
+- **Upload Images**: Drag & drop or click the image button to attach screenshots or mockups
+- The AI can analyze images and provide more relevant responses
 
-#### 3. Automatic Issue Creation
+#### 4. Automatic Issue Creation
 - After your second message, a GitHub Issue is automatically created
 - AI coding agents immediately begin analyzing and implementing your request
+- Your name and any attached images are included in the GitHub Issue
 - For automatic coding implementation, refer to methods like Claude Code Actions
 
 ### Example Conversations
@@ -201,6 +213,16 @@ npm run lint
           data-github-repo="company/frontend-app"
           data-position="bottom-right">
   </script>
+  
+  <!-- With Pre-configured User Information -->
+  <script src="http://localhost:3001/widget.js"
+          data-api-key="widget_abc123"
+          data-github-repo="company/frontend-app"
+          data-user-id="user123"
+          data-user-email="user@example.com"
+          data-user-name="John Doe"
+          data-position="bottom-right">
+  </script>
 </body>
 </html>
 ```
@@ -211,7 +233,7 @@ npm run lint
 // components/FeedbackWidget.jsx
 import { useEffect } from 'react';
 
-export default function FeedbackWidget() {
+export default function FeedbackWidget({ user }) {
   useEffect(() => {
     const script = document.createElement('script');
     // API endpoint will be automatically detected from script src
@@ -224,13 +246,18 @@ export default function FeedbackWidget() {
     script.dataset.apiKey = process.env.NEXT_PUBLIC_WIDGET_API_KEY || 'widget_dev';
     script.dataset.githubRepo = process.env.NEXT_PUBLIC_GITHUB_REPO || 'your-org/your-app';
     
+    // Optional: Pre-configure user information from your auth system
+    if (user?.id) script.dataset.userId = user.id;
+    if (user?.email) script.dataset.userEmail = user.email;
+    if (user?.name) script.dataset.userName = user.name;
+    
     document.body.appendChild(script);
 
     return () => {
       window.FeedbackWidget?.destroy();
       document.body.removeChild(script);
     };
-  }, []);
+  }, [user]);
 
   return null;
 }
@@ -286,6 +313,87 @@ FeedbackWidget.init({
     right: 24
   }
 });
+```
+
+#### User Information Configuration
+
+The widget supports automatic user identification with multiple fallback options:
+
+##### Priority Order:
+1. **Data Attributes** (highest priority) - Set via HTML data attributes
+2. **localStorage** - Automatically saved from user input
+3. **Manual Input** (fallback) - Prompted when no user info is available
+
+##### Configuration Examples:
+
+**Pre-configured User (from Authentication System):**
+```html
+<!-- User information from your login system -->
+<script src="http://localhost:3001/widget.js"
+        data-api-key="widget_abc123"
+        data-github-repo="company/frontend-app"
+        data-user-id="user_12345"
+        data-user-email="john.doe@company.com"
+        data-user-name="John Doe">
+</script>
+```
+
+**Dynamic User Information (React/Vue/etc.):**
+```javascript
+// Get user info from your auth system
+const user = getCurrentUser();
+
+// Set up widget with user data
+const script = document.createElement('script');
+script.src = 'http://localhost:3001/widget.js';
+script.dataset.apiKey = 'widget_dev';
+script.dataset.githubRepo = 'company/frontend-app';
+
+// Configure user information
+if (user?.id) script.dataset.userId = user.id;
+if (user?.email) script.dataset.userEmail = user.email;
+if (user?.name) script.dataset.userName = user.name;
+
+document.body.appendChild(script);
+```
+
+**Anonymous Users:**
+```html
+<!-- For sites without authentication -->
+<!-- Widget will prompt for user name on first use -->
+<!-- User name will be saved in localStorage for future sessions -->
+<script src="http://localhost:3001/widget.js"
+        data-api-key="widget_abc123"
+        data-github-repo="company/frontend-app">
+</script>
+```
+
+##### User Data Attributes:
+
+| Attribute | Description | Required | Example |
+|-----------|-------------|----------|---------|
+| `data-user-id` | Unique user identifier | No | `user_12345`, `auth0\|123456` |
+| `data-user-email` | User's email address | No | `user@example.com` |
+| `data-user-name` | User's display name | No | `John Doe`, `田中太郎` |
+
+##### localStorage Behavior:
+- User name is automatically saved when entered manually
+- Persists across browser sessions
+- Can be edited anytime via the widget interface
+- Key: `feedback-widget-username`
+
+##### GitHub Issue Integration:
+When user information is available, it's included in GitHub Issues:
+
+```markdown
+## ユーザー情報
+
+**User ID**: user_12345
+**Email**: john.doe@company.com
+**Name**: John Doe
+
+## 概要
+...rest of the issue...
 ```
 
 #### API Key and Repository Configuration
@@ -497,6 +605,9 @@ docker compose logs -f feedback-widget
 | Widget position incorrect | Adjust `offset` values in FeedbackWidget.init() |
 | AI responses too slow | Switch to `gemini-1.5-flash` model in .env |
 | AI responses too short | Increase GEMINI_MAX_TOKENS in .env |
+| User name not saving | Check browser localStorage support, verify no incognito mode |
+| User name prompt appearing repeatedly | Clear localStorage: `localStorage.removeItem('feedback-widget-username')` |
+| User info not in GitHub Issues | Verify data attributes are set correctly, check server logs |
 
 ### Development Workflow
 
@@ -582,6 +693,9 @@ curl -X POST http://localhost:3001/api/feedback/submit \
 | `X-API-Key` | Client identification key | Yes | `widget_*` (must start with `widget_`) |
 | `X-GitHub-Repo` | Target GitHub repository | Optional | `owner/repository` |
 | `X-Origin-Domain` | Widget's current domain | Auto | Hostname (e.g., `example.com`, `localhost`) |
+| `X-User-ID` | User identifier | Optional | `user_12345` |
+| `X-User-Email` | User email address | Optional | `user@example.com` |
+| `X-User-Name` | User display name | Optional | `John Doe` |
 
 **Note:** `X-Origin-Domain` is automatically sent by the widget.js and used for domain-API key pairing validation when `DOMAIN_API_MAPPINGS` is configured.
 

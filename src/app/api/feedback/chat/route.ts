@@ -18,7 +18,7 @@ const sessions = global.feedbackSessions;
 const setCorsHeaders = (response: NextResponse) => {
   response.headers.set('Access-Control-Allow-Origin', '*');
   response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-API-Key, X-GitHub-Repo, X-Origin-Domain');
+  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-API-Key, X-GitHub-Repo, X-Origin-Domain, X-User-ID, X-User-Email, X-User-Name');
   return response;
 };
 
@@ -32,10 +32,13 @@ export async function POST(request: NextRequest) {
   try {
     const { session_id, message, images } = await request.json();
     
-    // ヘッダーからAPI Key、GitHubリポジトリ、ドメインを取得
+    // ヘッダーからAPI Key、GitHubリポジトリ、ドメイン、ユーザー情報を取得
     const apiKey = request.headers.get('X-API-Key');
     const githubRepo = request.headers.get('X-GitHub-Repo');
     const originDomain = request.headers.get('X-Origin-Domain');
+    const userId = request.headers.get('X-User-ID');
+    const userEmail = request.headers.get('X-User-Email');
+    const userName = request.headers.get('X-User-Name');
     
     // API Key + ドメインセット認証
     const apiKeyValidation = validateApiKey(apiKey, originDomain);

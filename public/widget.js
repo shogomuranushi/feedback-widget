@@ -41,6 +41,9 @@
     return {
       apiKey: script.dataset.apiKey,
       githubRepo: script.dataset.githubRepo,
+      userId: script.dataset.userId,
+      userEmail: script.dataset.userEmail,
+      userName: script.dataset.userName,
       position: script.dataset.position || 'bottom-right',
       theme: script.dataset.theme || 'auto',
       bottom: parseInt(script.dataset.bottom || '24'),
@@ -68,6 +71,19 @@
       headers['X-Origin-Domain'] = config.domain;
     }
     
+    // ユーザー情報をヘッダーに追加
+    if (config.userId) {
+      headers['X-User-ID'] = config.userId;
+    }
+    if (config.userEmail) {
+      headers['X-User-Email'] = config.userEmail;
+    }
+    // ユーザー名は設定値またはlocalStorageから取得
+    const userName = config.userName || (window.FeedbackWidget && window.FeedbackWidget._getUserName ? window.FeedbackWidget._getUserName() : null);
+    if (userName) {
+      headers['X-User-Name'] = userName;
+    }
+    
     return headers;
   }
 
@@ -78,6 +94,7 @@
     _isOpen: false,
     _session: null,
     _issueCreated: false,
+    _userName: null,
 
     init: function(config) {
       if (this._initialized) {
@@ -90,10 +107,37 @@
         offset: { bottom: 24, right: 24 }
       }, config || {});
 
+      this._loadUserName();
       this._initializeSession();
       this._createFloatingButton();
       this._addStyles();
       this._initialized = true;
+    },
+
+    _loadUserName: function() {
+      try {
+        const savedUserName = localStorage.getItem('feedback-widget-username');
+        if (savedUserName) {
+          this._userName = savedUserName;
+        }
+      } catch (error) {
+        console.warn('Failed to load username from localStorage:', error);
+      }
+    },
+
+    _saveUserName: function(userName) {
+      try {
+        this._userName = userName;
+        localStorage.setItem('feedback-widget-username', userName);
+      } catch (error) {
+        console.warn('Failed to save username to localStorage:', error);
+      }
+    },
+
+    _getUserName: function() {
+      // 優先順位: data属性 > localStorage > null
+      const config = getScriptConfig();
+      return config.userName || this._userName;
     },
 
     _initializeSession: function() {
@@ -137,6 +181,13 @@
       
       this._isOpen = true;
       this._createModal();
+      
+      // ユーザー名が未設定の場合、初回表示時にモーダルを表示
+      if (!this._getUserName()) {
+        setTimeout(() => {
+          this._showUserNameModal();
+        }, 500);
+      }
     },
 
     _closeModal: function() {
@@ -158,7 +209,10 @@
                 <path d="M12 2C13.1 2 14 2.9 14 4C14 5.1 13.1 6 12 6C10.9 6 10 5.1 10 4C10 2.9 10.9 2 12 2ZM12 7C14.21 7 16 8.79 16 11V22H8V11C8 8.79 9.79 7 12 7Z" />
               </svg>
             </div>
-            <h1>フィードバック</h1>
+            <div class="feedback-widget-header-text">
+              <h1>フィードバック</h1>
+              ${this._renderUserInfo()}
+            </div>
           </div>
           <button class="feedback-widget-close" onclick="window.FeedbackWidget._closeModal()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -266,6 +320,105 @@
       `;
     },
 
+    _renderUserInfo: function() {
+      const userName = this._getUserName();
+      if (userName) {
+        return `
+          <div class="feedback-widget-user-info">
+            <span class="feedback-widget-user-name">${userName}</span>
+            <button class="feedback-widget-edit-user" onclick="window.FeedbackWidget._showUserNameModal()" title="ユーザー名を編集">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+              </svg>
+            </button>
+          </div>
+        `;
+      }
+      return '';
+    },
+
+    _showUserNameModal: function() {
+      const currentName = this._getUserName() || '';
+      
+      // 既存のユーザー名モーダルがあれば削除
+      const existingModal = document.querySelector('.feedback-widget-username-overlay');
+      if (existingModal) existingModal.remove();
+
+      // ウィジェットモーダル内にユーザー名入力UIを挿入
+      const messagesContainer = document.getElementById('feedback-widget-messages');
+      if (!messagesContainer) return;
+
+      const usernameOverlay = document.createElement('div');
+      usernameOverlay.className = 'feedback-widget-username-overlay';
+      usernameOverlay.innerHTML = `
+        <div class="feedback-widget-username-content">
+          <div class="feedback-widget-username-header">
+            <h3>ユーザー名の設定</h3>
+          </div>
+          <div class="feedback-widget-username-body">
+            <p>フィードバックの送信者として表示される名前を入力してください。</p>
+            <input 
+              type="text" 
+              id="feedback-widget-username-input" 
+              class="feedback-widget-username-input"
+              placeholder="お名前を入力してください"
+              value="${currentName}"
+              maxlength="50"
+            />
+            <div class="feedback-widget-username-buttons">
+              ${currentName ? '<button class="feedback-widget-username-cancel" onclick="window.FeedbackWidget._hideUserNameModal()">キャンセル</button>' : ''}
+              <button class="feedback-widget-username-save" onclick="window.FeedbackWidget._saveUserNameFromModal()">
+                保存
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+
+      messagesContainer.parentNode.insertBefore(usernameOverlay, messagesContainer);
+      
+      // 入力フィールドにフォーカス
+      setTimeout(() => {
+        const input = document.getElementById('feedback-widget-username-input');
+        if (input) {
+          input.focus();
+          input.select();
+        }
+      }, 100);
+    },
+
+    _hideUserNameModal: function() {
+      const overlay = document.querySelector('.feedback-widget-username-overlay');
+      if (overlay) overlay.remove();
+    },
+
+    _saveUserNameFromModal: function() {
+      const input = document.getElementById('feedback-widget-username-input');
+      if (input) {
+        const userName = input.value.trim();
+        if (userName) {
+          this._saveUserName(userName);
+          // オーバーレイを削除
+          this._hideUserNameModal();
+          
+          // ヘッダーを更新
+          this._updateHeader();
+        } else {
+          alert('ユーザー名を入力してください。');
+        }
+      }
+    },
+
+    _updateHeader: function() {
+      const headerText = document.querySelector('.feedback-widget-header-text');
+      if (headerText) {
+        headerText.innerHTML = `
+          <h1>フィードバック</h1>
+          ${this._renderUserInfo()}
+        `;
+      }
+    },
+
     _openImageModal: function(imageUrl) {
       // 既存の画像モーダルがあれば削除
       const existingModal = document.getElementById('feedback-widget-image-modal');
@@ -333,6 +486,13 @@
       
       // テキストまたは画像のいずれかが必要
       if (!hasText && !hasImages) return;
+
+      // ユーザー名のチェック（data属性またはlocalStorageから取得）
+      const userName = this._getUserName();
+      if (!userName) {
+        this._showUserNameModal();
+        return;
+      }
 
       const content = hasText ? input.value.trim() : '';
       if (input) input.value = '';
@@ -800,6 +960,12 @@
           display: flex;
           align-items: center;
           gap: 12px;
+          flex: 1;
+        }
+        .feedback-widget-header-text {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
         }
         .feedback-widget-avatar {
           width: 40px;
@@ -1218,6 +1384,154 @@
           background: #dc2626;
           transform: scale(1.1);
         }
+        
+        /* ユーザー情報表示用スタイル */
+        .feedback-widget-user-info {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-top: 2px;
+        }
+        
+        .feedback-widget-user-name {
+          font-size: 12px;
+          color: rgba(255, 255, 255, 0.8);
+          background: rgba(255, 255, 255, 0.1);
+          padding: 2px 8px;
+          border-radius: 12px;
+          font-weight: 500;
+        }
+        
+        .feedback-widget-edit-user {
+          background: none;
+          border: none;
+          color: rgba(255, 255, 255, 0.7);
+          cursor: pointer;
+          padding: 4px;
+          border-radius: 4px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s ease;
+        }
+        
+        .feedback-widget-edit-user:hover {
+          color: rgba(255, 255, 255, 0.9);
+          background: rgba(255, 255, 255, 0.1);
+        }
+        
+        /* ユーザー名設定オーバーレイ用スタイル（ウィジェット内） */
+        .feedback-widget-username-overlay {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(255, 255, 255, 0.95);
+          backdrop-filter: blur(8px);
+          z-index: 1000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+          box-sizing: border-box;
+        }
+        
+        .feedback-widget-username-content {
+          background: white;
+          border-radius: 12px;
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+          width: 100%;
+          max-width: 320px;
+          overflow: hidden;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+          border: 1px solid #e2e8f0;
+        }
+        
+        .feedback-widget-username-header {
+          background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+          color: white;
+          padding: 12px 16px;
+          text-align: center;
+        }
+        
+        .feedback-widget-username-header h3 {
+          margin: 0;
+          font-size: 14px;
+          font-weight: 600;
+        }
+        
+        .feedback-widget-username-body {
+          padding: 16px;
+        }
+        
+        .feedback-widget-username-body p {
+          margin: 0 0 12px 0;
+          color: #64748b;
+          font-size: 13px;
+          line-height: 1.4;
+        }
+        
+        .feedback-widget-username-input {
+          width: 100%;
+          padding: 10px 12px;
+          border: 1px solid #d1d5db;
+          border-radius: 6px;
+          font-size: 14px;
+          font-family: inherit;
+          outline: none;
+          margin-bottom: 16px;
+          box-sizing: border-box;
+        }
+        
+        .feedback-widget-username-input:focus {
+          border-color: #6366f1;
+          box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+        
+        .feedback-widget-username-buttons {
+          display: flex;
+          gap: 12px;
+          justify-content: flex-end;
+        }
+        
+        .feedback-widget-username-cancel,
+        .feedback-widget-username-save {
+          padding: 8px 12px;
+          border-radius: 6px;
+          font-size: 13px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          border: none;
+          font-family: inherit;
+          min-width: 80px;
+        }
+        
+        .feedback-widget-username-cancel {
+          margin-right: auto;
+        }
+        
+        .feedback-widget-username-cancel {
+          background: #f1f5f9;
+          color: #64748b;
+        }
+        
+        .feedback-widget-username-cancel:hover {
+          background: #e2e8f0;
+          color: #475569;
+        }
+        
+        .feedback-widget-username-save {
+          background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+          color: white;
+        }
+        
+        .feedback-widget-username-save:hover {
+          background: linear-gradient(135deg, #5b21b6 0%, #7c3aed 100%);
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
       `;
       document.head.appendChild(style);
     },
@@ -1225,6 +1539,9 @@
     destroy: function() {
       ['feedback-widget-button', 'feedback-widget-modal', 'feedback-widget-styles', 'feedback-widget-issue-notification', 'feedback-widget-image-modal']
         .forEach(id => document.getElementById(id)?.remove());
+      
+      // ユーザー名オーバーレイも削除
+      document.querySelectorAll('.feedback-widget-username-overlay').forEach(el => el.remove());
       
       this._initialized = false;
       this._isOpen = false;

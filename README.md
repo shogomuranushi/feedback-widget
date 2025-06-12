@@ -80,7 +80,7 @@ User: "Nothing happens after uploading large files"
 
 - Node.js 22+
 - Docker & Docker Compose
-- GitHub Personal Access Token (with repo permissions)
+- GitHub Personal Access Token (with repo permissions) OR GitHub App credentials
 - Google Gemini API Key
 
 ### 1. Clone Repository
@@ -99,8 +99,21 @@ cat > .env << 'EOF'
 GEMINI_API_KEY=your-gemini-api-key
 GEMINI_MODEL=gemini-2.5-pro-preview-06-05
 
-# GitHub Configuration
+# GitHub Authentication
+# Choose AUTH_TYPE: 'pat' or 'github-app'
+GITHUB_AUTH_TYPE=pat
+
+# For Personal Access Token (PAT)
 GITHUB_TOKEN=your-github-token
+
+# For GitHub App
+GITHUB_APP_ID=your-app-id
+GITHUB_APP_INSTALLATION_ID=your-installation-id
+GITHUB_APP_PRIVATE_KEY_PATH=/path/to/private-key.pem
+# Alternative: Set the private key content directly (for Cloud Run)
+# GITHUB_APP_PRIVATE_KEY=base64-encoded-private-key
+
+# Common settings
 GITHUB_MENTION=@claude
 
 # Domain-API Key Mapping (Required)
@@ -147,11 +160,50 @@ DOMAIN_API_MAPPINGS=all:widget_debug_key
 - Each domain must have at least one authorized API key
 - `all` keyword allows any domain (debug use only)
 
-#### GitHub Token Setup
+#### GitHub Authentication Setup
+
+You can choose between two authentication methods:
+
+##### Option 1: Personal Access Token (PAT) - Simple Setup
 
 1. Create a new token at [GitHub Settings > Personal access tokens](https://github.com/settings/tokens)
 2. Grant `repo` permissions
 3. Set the generated token as `GITHUB_TOKEN`
+4. Set `GITHUB_AUTH_TYPE=pat` in your .env file
+
+##### Option 2: GitHub App - Enterprise Recommended
+
+1. Create a GitHub App at [GitHub Settings > Developer settings > GitHub Apps](https://github.com/settings/apps/new)
+2. Configure the app:
+   - **GitHub App name**: Your app name (e.g., `Feedback Widget Bot`)
+   - **Homepage URL**: Your application URL
+   - **Webhook**: Disable (uncheck Active)
+   - **Permissions**: Repository > Issues > Read & write
+   - **Where can this GitHub App be installed?**: Choose based on your needs
+3. After creation:
+   - Note the **App ID**
+   - Generate a **Private Key** (will download a .pem file)
+   - Install the app on your repository/organization
+   - Note the **Installation ID** from the URL after installation
+4. Configure in .env:
+   ```bash
+   GITHUB_AUTH_TYPE=github-app
+   GITHUB_APP_ID=your-app-id
+   GITHUB_APP_INSTALLATION_ID=your-installation-id
+   GITHUB_APP_PRIVATE_KEY_PATH=/path/to/private-key.pem
+   ```
+
+##### For Cloud Run Deployment (GitHub App)
+
+When deploying to Cloud Run, you can use base64-encoded private key:
+
+```bash
+# Encode your private key
+base64 -w 0 < /path/to/private-key.pem
+
+# Set in .env or Cloud Run environment
+GITHUB_APP_PRIVATE_KEY=base64-encoded-string
+```
 
 #### Gemini API Key Setup
 
@@ -631,7 +683,15 @@ docker compose up --build
 |----------|-------------|----------|---------|
 | `GEMINI_API_KEY` | Google Gemini AI API key | Yes | `AIza...` |
 | `GEMINI_MODEL` | Gemini model to use | No | `gemini-2.0-flash` |
-| `GITHUB_TOKEN` | GitHub personal access token | Yes | `ghp_...` |
+| `GITHUB_AUTH_TYPE` | Authentication type | No | `pat` or `github-app` (default: `pat`) |
+| **For PAT Authentication:** | | | |
+| `GITHUB_TOKEN` | GitHub personal access token | Yes (if using PAT) | `ghp_...` |
+| **For GitHub App Authentication:** | | | |
+| `GITHUB_APP_ID` | GitHub App ID | Yes (if using App) | `123456` |
+| `GITHUB_APP_INSTALLATION_ID` | Installation ID | Yes (if using App) | `789012` |
+| `GITHUB_APP_PRIVATE_KEY_PATH` | Path to private key file | One required | `/path/to/key.pem` |
+| `GITHUB_APP_PRIVATE_KEY` | Base64 encoded private key | (if using App) | `LS0tLS1CRU...` |
+| **Common Settings:** | | | |
 | `GITHUB_MENTION` | User/team to mention in issues | No | `@claude` |
 | `GITHUB_NOTIFY` | Show Issue creation notification in widget | No | `true` |
 | `DOMAIN_API_MAPPINGS` | Domain-API key mappings (required) | Yes | `example.com:widget_key1;localhost:widget_dev` |

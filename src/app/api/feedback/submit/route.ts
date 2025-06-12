@@ -4,6 +4,7 @@ import { i18nService } from '../../../../lib/i18n';
 import { isValidSessionId, validateFeedbackData, sanitizeInput } from '../../../../lib/utils/security';
 import { validateApiKey } from '../../../../lib/utils/apiKeyAuth';
 import { Message } from '../../../../lib/types';
+import { GitHubAppAuthService } from '../../../../lib/services/GitHubAppAuthService';
 
 // セッション管理用の簡易インメモリストレージ（グローバル共有）
 declare global {
@@ -64,12 +65,8 @@ export async function POST(request: NextRequest) {
     
     // GitHub設定の取得（リポジトリはクライアント側で必須指定）
     const repository = githubRepo;
-    const githubToken = process.env.GITHUB_TOKEN;
+    const githubAuthType = process.env.GITHUB_AUTH_TYPE || 'pat';
     const githubMention = process.env.GITHUB_MENTION || '@claude';
-
-    if (!githubToken) {
-      return createErrorResponse('GitHub token not configured', 500);
-    }
 
     if (!repository) {
       return createErrorResponse('GitHub repository must be specified in X-GitHub-Repo header', 400);
@@ -80,7 +77,40 @@ export async function POST(request: NextRequest) {
       return createErrorResponse('Invalid repository format. Expected: owner/repo', 500);
     }
     
-    const octokit = new Octokit({ auth: githubToken });
+    // 認証タイプに応じてOctokitインスタンスを取得
+    let octokit: Octokit;
+    
+    if (githubAuthType === 'github-app') {
+      // GitHub App認証
+      const appId = process.env.GITHUB_APP_ID;
+      const installationId = process.env.GITHUB_APP_INSTALLATION_ID;
+      const privateKeyPath = process.env.GITHUB_APP_PRIVATE_KEY_PATH;
+      const privateKey = process.env.GITHUB_APP_PRIVATE_KEY;
+      
+      if (!appId || !installationId || (!privateKeyPath && !privateKey)) {
+        return createErrorResponse('GitHub App configuration incomplete', 500);
+      }
+      
+      try {
+        const githubAppAuth = new GitHubAppAuthService({
+          appId,
+          installationId,
+          privateKeyPath,
+          privateKey
+        });
+        octokit = await githubAppAuth.getAuthenticatedOctokit();
+      } catch (error) {
+        console.error('GitHub App認証エラー:', error);
+        return createErrorResponse('GitHub App authentication failed', 500);
+      }
+    } else {
+      // Personal Access Token認証
+      const githubToken = process.env.GITHUB_TOKEN;
+      if (!githubToken) {
+        return createErrorResponse('GitHub token not configured', 500);
+      }
+      octokit = new Octokit({ auth: githubToken });
+    }
 
     // セッションストアから実際の会話履歴を取得（画像データを含む）
     const sessions = global.feedbackSessions || new Map();

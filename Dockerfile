@@ -5,8 +5,8 @@ FROM base AS deps
 WORKDIR /app
 
 # Install dependencies based on the preferred package manager
-COPY package.json package-lock.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+COPY package*.json ./
+RUN npm ci --omit=dev && npm cache clean --force || npm install --omit=dev && npm cache clean --force
 
 # Rebuild the source code only when needed
 FROM base AS builder

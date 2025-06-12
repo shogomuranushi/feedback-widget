@@ -224,6 +224,45 @@
       return text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
     },
 
+    _showIssueCreatedNotification: function(issueNumber, issueUrl) {
+      // 既存の通知があれば削除
+      const existingNotification = document.getElementById('feedback-widget-issue-notification');
+      if (existingNotification) {
+        existingNotification.remove();
+      }
+
+      // 通知要素を作成
+      const notification = document.createElement('div');
+      notification.id = 'feedback-widget-issue-notification';
+      notification.className = 'feedback-widget-issue-notification';
+      notification.innerHTML = `
+        <div class="feedback-widget-notification-content">
+          <div class="feedback-widget-notification-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+            </svg>
+          </div>
+          <div class="feedback-widget-notification-text">
+            <div class="feedback-widget-notification-title">GitHub Issueが作成されました</div>
+            <div class="feedback-widget-notification-link">
+              <a href="${issueUrl}" target="_blank" rel="noopener noreferrer">#${issueNumber}</a>
+            </div>
+          </div>
+          <button class="feedback-widget-notification-close" onclick="this.parentElement.parentElement.remove()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+            </svg>
+          </button>
+        </div>
+      `;
+
+      // メッセージコンテナの上に挿入
+      const messagesContainer = document.getElementById('feedback-widget-messages');
+      if (messagesContainer) {
+        messagesContainer.parentNode.insertBefore(notification, messagesContainer);
+      }
+    },
+
     _sendMessage: async function() {
       const input = document.getElementById('feedback-widget-input');
       if (!input || !input.value.trim()) return;
@@ -390,17 +429,9 @@
         
         if (response.ok) {
           const result = await response.json();
-          // GITHUB_NOTIFYがtrueの場合のみIssue作成成功メッセージを表示
+          // GITHUB_NOTIFYがtrueの場合のみIssue作成成功通知を表示
           if (result.notify_enabled) {
-            const successMessage = {
-              id: Math.random().toString(36).substring(2, 15),
-              role: 'assistant',
-              content: `📋 GitHub Issueが作成されました！開発チームが確認し、対応いたします。\n\nIssue: [#${result.issue_number}](${result.issue_url})`,
-              timestamp: new Date()
-            };
-            
-            this._session.messages.push(successMessage);
-            this._updateMessagesDisplay();
+            this._showIssueCreatedNotification(result.issue_number, result.issue_url);
           }
         }
         
@@ -547,6 +578,71 @@
         .feedback-widget-message.user .feedback-widget-message-content a:hover {
           color: #c4b5fd;
         }
+        .feedback-widget-issue-notification {
+          margin: 16px;
+          margin-bottom: 0;
+          border-radius: 12px;
+          background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+          color: white;
+          box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+          animation: feedback-widget-slide-in 0.3s ease-out;
+        }
+        .feedback-widget-notification-content {
+          display: flex;
+          align-items: center;
+          padding: 12px 16px;
+          gap: 12px;
+        }
+        .feedback-widget-notification-icon {
+          flex-shrink: 0;
+          opacity: 0.9;
+        }
+        .feedback-widget-notification-text {
+          flex: 1;
+          min-width: 0;
+        }
+        .feedback-widget-notification-title {
+          font-size: 14px;
+          font-weight: 600;
+          margin-bottom: 2px;
+        }
+        .feedback-widget-notification-link {
+          font-size: 13px;
+          opacity: 0.9;
+        }
+        .feedback-widget-notification-link a {
+          color: #d1fae5;
+          text-decoration: none;
+          font-weight: 500;
+        }
+        .feedback-widget-notification-link a:hover {
+          color: white;
+          text-decoration: underline;
+        }
+        .feedback-widget-notification-close {
+          flex-shrink: 0;
+          background: none;
+          border: none;
+          color: white;
+          cursor: pointer;
+          padding: 4px;
+          border-radius: 4px;
+          opacity: 0.7;
+        }
+        .feedback-widget-notification-close:hover {
+          opacity: 1;
+          background: rgba(255, 255, 255, 0.1);
+        }
+        @keyframes feedback-widget-slide-in {
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
         .feedback-widget-message-time {
           font-size: 12px;
           color: #64748b;
@@ -623,7 +719,7 @@
     },
 
     destroy: function() {
-      ['feedback-widget-button', 'feedback-widget-modal', 'feedback-widget-styles']
+      ['feedback-widget-button', 'feedback-widget-modal', 'feedback-widget-styles', 'feedback-widget-issue-notification']
         .forEach(id => document.getElementById(id)?.remove());
       
       this._initialized = false;
